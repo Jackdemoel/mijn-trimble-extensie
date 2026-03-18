@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v1.2</title>
+    <title>BCF Clash Helper v1.3</title>
     <style>
         body { font-family: sans-serif; padding: 15px; color: #333; background: #f4f4f4; }
         .card { border: 1px solid #ddd; padding: 15px; border-radius: 10px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -12,15 +12,15 @@
         .secondary-btn { background: #666; }
         #data-container { margin-top: 15px; font-size: 0.9em; }
         .section-title { font-weight: bold; margin: 10px 0 5px 0; display: block; color: #444; }
-        .item-box { background: #fafafa; border: 1px solid #eee; padding: 8px; border-radius: 4px; margin-bottom: 5px; border-left: 4px solid #666; }
-        .clash-active { border-left-color: #e81123; }
-        .token-info { font-size: 0.8em; color: green; margin-bottom: 10px; display: none; }
+        .item-box { background: #fafafa; border: 1px solid #eee; padding: 10px; border-radius: 4px; margin-bottom: 8px; border-left: 4px solid #e81123; }
+        .token-info { font-size: 0.8em; color: green; margin-bottom: 10px; display: none; font-weight: bold; }
+        .error { color: #e81123; font-weight: bold; font-size: 0.8em; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
     <div class="card">
-        <span class="version">v1.2</span>
+        <span class="version">v1.3</span>
         <h3>BCF Clash Helper</h3>
         <div id="project-name">Laden...</div>
         
@@ -30,70 +30,11 @@
         <button id="btn-load-clashes" class="secondary-btn">2. Haal Project Clashsets</button>
         
         <div id="data-container">
-            <span class="section-title">Project Data:</span>
-            <div id="content">Klik op de knoppen om data te laden.</div>
+            <span id="status-msg" class="section-title">Project Data:</span>
+            <div id="content">Activeer eerst het token.</div>
         </div>
     </div>
 
-    <script>
-        let API;
-        let accessToken = null;
-
-        async function init() {
-            try {
-                // Initialiseer verbinding met de Workspace [cite: 28, 68]
-                API = await TrimbleConnectWorkspace.connect(
-                    window.parent, 
-                    (event, data) => { console.log("Event:", event, data); }
-                );
-
-                // Toon huidige projectnaam [cite: 52, 187]
-                const project = await API.project.getCurrentProject();
-                document.getElementById('project-name').innerText = "Project: " + project.name;
-            } catch (error) {
-                console.error("Initialisatie fout:", error);
-            }
-        }
-
-        // 1. Token ophalen 
-        document.getElementById('btn-token').onclick = async () => {
-            if (!API) return;
-            accessToken = await API.extension.requestPermission("accesstoken");
-            if (accessToken && accessToken !== "pending") {
-                document.getElementById('token-status').style.display = "block";
-                console.log("Token ontvangen voor API calls.");
-            }
-        };
-
-        // 2. Clashsets ophalen via de Project API [cite: 52, 120]
-        document.getElementById('btn-load-clashes').onclick = async () => {
-            if (!API) return;
-            const container = document.getElementById('content');
-            container.innerHTML = "Zoeken in database...";
-
-            try {
-                // We vragen eerst de project details om de juiste regio/ID te hebben 
-                const projectInfo = await API.project.getCurrentProject();
-                
-                // Omdat de Workspace API getClashSets niet direct in de viewer heeft, 
-                // kijken we naar de beschikbare data-objecten in het project [cite: 122]
-                const models = await API.project.getProjectModels(); 
-                
-                if (models && models.length > 0) {
-                    container.innerHTML = "<strong>Modellen gevonden:</strong><br>" + 
-                    models.map(m => `<div class="item-box">📦 ${m.name}</div>`).join('');
-                    
-                    console.log("Gebruik het token om nu de Clash API aan te roepen met ProjectID:", projectInfo.id);
-                } else {
-                    container.innerHTML = "Geen modellen gevonden in database.";
-                }
-            } catch (err) {
-                container.innerHTML = "Fout bij ophalen projectdata.";
-                console.error(err);
-            }
-        };
-
-        init();
-    </script>
+    <script src="app.js"></script>
 </body>
 </html>
