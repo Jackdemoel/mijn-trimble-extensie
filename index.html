@@ -3,22 +3,31 @@
 <head>
     <title>BCF Clash Helper</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; color: #333; }
-        .card { border: 1px solid #ccc; padding: 15px; border-radius: 8px; background: #f9f9f9; }
-        button { background: #0078d4; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+        body { font-family: sans-serif; padding: 20px; color: #333; background: #f4f4f4; }
+        .card { border: 1px solid #ddd; padding: 20px; border-radius: 10px; background: white; shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h3 { margin-top: 0; color: #0078d4; }
+        button { background: #0078d4; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 10px; width: 100%; }
         button:hover { background: #005a9e; }
-        #status { margin-top: 15px; font-size: 0.9em; color: #666; }
+        .secondary-btn { background: #666; }
+        .secondary-btn:hover { background: #444; }
+        #model-list { margin-top: 15px; padding: 10px; border: 1px solid #eee; border-radius: 4px; background: #fafafa; }
+        .model-item { font-size: 0.85em; padding: 5px 0; border-bottom: 1px solid #eee; }
+        #project-name { font-weight: bold; margin-bottom: 15px; color: #444; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
     <div class="card">
         <h3>BCF Clash Helper</h3>
-        <div id="project-name">Verbinden met Trimble Connect...</div>
+        <div id="project-name">Laden...</div>
         
-        <button id="btn-token">Vraag Access Token</button>
+        <button id="btn-token">1. Activeer Token</button>
+        <button id="btn-models" class="secondary-btn">2. Haal Modellen Op</button>
         
-        <div id="status">Bekijk de browser console (F12) voor technische details.</div>
+        <div id="model-list">
+            <strong>Geladen modellen:</strong>
+            <div id="models-content">Nog geen data opgehaald.</div>
+        </div>
     </div>
 
     <script>
@@ -26,55 +35,47 @@
 
         async function init() {
             try {
-                // Initialiseer de verbinding met de 3D Viewer
+                // Maak verbinding met de viewer [cite: 67, 68]
                 API = await TrimbleConnectWorkspace.connect(
                     window.parent, 
                     (event, data) => {
-                        console.log("Event ontvangen van viewer:", event, data);
+                        console.log("Viewer Event:", event, data);
                     }
                 );
 
-                // Haal huidige projectinformatie op
-                const project = await API.project.getCurrentProject();
+                const project = await API.project.getCurrentProject(); // 
                 document.getElementById('project-name').innerText = "Project: " + project.name;
-                console.log("Project info geladen:", project);
-
-                // Haal lijst met geladen modellen op
-                const models = await API.viewer.getModels();
-                console.log("Geladen modellen in viewer:", models);
-
-                // Probeer clashsets op te halen (indien ondersteund door viewer module)
-                if (API.viewer.getClashSets) {
-                    const clashSets = await API.viewer.getClashSets();
-                    console.log("Beschikbare clashsets:", clashSets);
-                }
-
             } catch (error) {
-                console.error("Fout bij initialiseren API:", error);
-                document.getElementById('project-name').innerText = "Verbindingsfout. Controleer console.";
+                console.error("Connectie fout:", error);
+                document.getElementById('project-name').innerText = "Fout bij verbinden.";
             }
         }
 
-        // Token aanvraag knop functionaliteit
-        document.getElementById('btn-token').onclick = async () => {
-            if (!API) return alert("API nog niet verbonden");
+        // Functie om handmatig modellen op te halen
+        document.getElementById('btn-models').onclick = async () => {
+            if (!API) return;
             
             try {
-                // Vraag toestemming voor het token
-                const token = await API.extension.requestPermission("accesstoken");
-                console.log("Access Token status/waarde:", token);
+                const models = await API.viewer.getModels();
+                console.log("Modellen uit API:", models);
                 
-                if (token === "pending") {
-                    alert("Accepteer de toestemming in het Trimble Connect venster.");
+                const container = document.getElementById('models-content');
+                if (models && models.length > 0) {
+                    container.innerHTML = models.map(m => `<div class="model-item">📄 ${m.name}</div>`).join('');
                 } else {
-                    alert("Token succesvol ontvangen! Zie console voor de waarde.");
+                    container.innerHTML = "0 modellen gevonden. Staan ze wel aan in de viewer?";
                 }
             } catch (err) {
-                console.error("Fout bij token aanvraag:", err);
+                console.error("Fout bij ophalen modellen:", err);
             }
         };
 
-        // Start de applicatie
+        document.getElementById('btn-token').onclick = async () => {
+            if (!API) return;
+            const token = await API.extension.requestPermission("accesstoken"); // [cite: 71, 198]
+            alert("Token status: " + (token === "pending" ? "Wacht op toestemming..." : "Ontvangen!"));
+        };
+
         init();
     </script>
 </body>
