@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v1.9</title>
+    <title>BCF Clash Helper v2.0</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; color: #333; background: #fff; }
         .header { background: #333; padding: 10px 15px; color: white; display: flex; justify-content: space-between; align-items: center; }
@@ -14,7 +14,7 @@
         .product-name { display: block; font-weight: bold; font-size: 12px; color: #0078d4; }
         .meta-info { font-size: 11px; color: #666; }
         .filter-area { background: #f1f1f1; padding: 10px; margin-bottom: 15px; }
-        input { width: 100%; padding: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+        input { width: 100%; padding: 8px; border: 1px solid #ccc; box-sizing: border-box; }
         .hidden { display: none; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
@@ -22,19 +22,19 @@
 <body>
     <div class="header">
         <h3>BCF CLASH HELPER</h3>
-        <span style="font-size: 10px;">v1.9</span>
+        <span style="font-size: 10px;">v2.0</span>
     </div>
 
     <div class="container">
         <div id="set-selection-area">
-            <button id="btn-load-sets">Haal Clashsets Op</button>
+            <button id="btn-load-sets">Haal Project Clashsets</button>
             <div id="clash-sets-list"></div>
         </div>
 
         <div id="detail-area" class="hidden">
             <button onclick="backToSets()" style="background:#666;">⬅ Terug naar overzicht</button>
             <div class="filter-area">
-                <input type="text" id="product-filter" placeholder="Zoek op Product Name (bijv. Legrand)...">
+                <input type="text" id="product-filter" placeholder="Filter op Product Name...">
             </div>
             <div id="clash-items-list"></div>
         </div>
