@@ -1,32 +1,34 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper</title>
+    <title>BCF Clash Helper v1.1</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; color: #333; background: #f4f4f4; }
-        .card { border: 1px solid #ddd; padding: 20px; border-radius: 10px; background: white; shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        h3 { margin-top: 0; color: #0078d4; }
-        button { background: #0078d4; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 10px; width: 100%; }
+        body { font-family: sans-serif; padding: 15px; color: #333; background: #f4f4f4; }
+        .card { border: 1px solid #ddd; padding: 15px; border-radius: 10px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h3 { margin-top: 0; color: #0078d4; border-bottom: 2px solid #0078d4; padding-bottom: 5px; }
+        .version { font-size: 0.7em; color: #999; float: right; }
+        button { background: #0078d4; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 8px; width: 100%; }
         button:hover { background: #005a9e; }
         .secondary-btn { background: #666; }
-        .secondary-btn:hover { background: #444; }
-        #model-list { margin-top: 15px; padding: 10px; border: 1px solid #eee; border-radius: 4px; background: #fafafa; }
-        .model-item { font-size: 0.85em; padding: 5px 0; border-bottom: 1px solid #eee; }
-        #project-name { font-weight: bold; margin-bottom: 15px; color: #444; }
+        #data-container { margin-top: 15px; font-size: 0.9em; }
+        .section-title { font-weight: bold; margin: 10px 0 5px 0; display: block; color: #444; }
+        .item-box { background: #fafafa; border: 1px solid #eee; padding: 8px; border-radius: 4px; margin-bottom: 5px; }
+        .clash-item { border-left: 4px solid #e81123; padding-left: 10px; } /* Rood voor clashes */
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
     <div class="card">
-        <h3>BCF Clash Helper versie 1.1.0</h3>
+        <span class="version">v1.1</span>
+        <h3>BCF Clash Helper</h3>
         <div id="project-name">Laden...</div>
         
         <button id="btn-token">1. Activeer Token</button>
-        <button id="btn-models" class="secondary-btn">2. Haal Modellen Op</button>
+        <button id="btn-load-data" class="secondary-btn">2. Haal Clash Sets Op</button>
         
-        <div id="model-list">
-            <strong>Geladen modellen:</strong>
-            <div id="models-content">Nog geen data opgehaald.</div>
+        <div id="data-container">
+            <span class="section-title">Gevonden Clash Sets:</span>
+            <div id="clash-content">Nog geen data opgehaald.</div>
         </div>
     </div>
 
@@ -35,45 +37,52 @@
 
         async function init() {
             try {
-                // Maak verbinding met de viewer [cite: 67, 68]
+                // Initialiseer verbinding [cite: 28, 68]
                 API = await TrimbleConnectWorkspace.connect(
                     window.parent, 
-                    (event, data) => {
-                        console.log("Viewer Event:", event, data);
-                    }
+                    (event, data) => { console.log("Event:", event, data); }
                 );
 
-                const project = await API.project.getCurrentProject(); // 
+                // Toon projectnaam [cite: 187]
+                const project = await API.project.getCurrentProject();
                 document.getElementById('project-name').innerText = "Project: " + project.name;
             } catch (error) {
-                console.error("Connectie fout:", error);
-                document.getElementById('project-name').innerText = "Fout bij verbinden.";
+                document.getElementById('project-name').innerText = "Verbindingsfout.";
             }
         }
 
-        // Functie om handmatig modellen op te halen
-        document.getElementById('btn-models').onclick = async () => {
+        // Knop om Clash Sets op te halen
+        document.getElementById('btn-load-data').onclick = async () => {
             if (!API) return;
+            const container = document.getElementById('clash-content');
+            container.innerHTML = "Zoeken naar clash sets...";
             
             try {
-                const models = await API.viewer.getModels();
-                console.log("Modellen uit API:", models);
+                // We proberen de clashsets op te vragen via de viewer module 
+                // Let op: getClashSets is een methode die de viewer aanroept
+                const clashSets = await API.viewer.getClashSets();
                 
-                const container = document.getElementById('models-content');
-                if (models && models.length > 0) {
-                    container.innerHTML = models.map(m => `<div class="model-item">📄 ${m.name}</div>`).join('');
+                if (clashSets && clashSets.length > 0) {
+                    container.innerHTML = clashSets.map(c => `
+                        <div class="item-box clash-item">
+                            <strong>${c.name}</strong><br>
+                            <small>ID: ${c.id}</small>
+                        </div>
+                    `).join('');
                 } else {
-                    container.innerHTML = "0 modellen gevonden. Staan ze wel aan in de viewer?";
+                    container.innerHTML = "0 clash sets gevonden in de viewer.";
                 }
             } catch (err) {
-                console.error("Fout bij ophalen modellen:", err);
+                console.error(err);
+                container.innerHTML = "Fout bij ophalen. Staan er clashsets open?";
             }
         };
 
+        // Token activeren [cite: 71, 198]
         document.getElementById('btn-token').onclick = async () => {
             if (!API) return;
-            const token = await API.extension.requestPermission("accesstoken"); // [cite: 71, 198]
-            alert("Token status: " + (token === "pending" ? "Wacht op toestemming..." : "Ontvangen!"));
+            const token = await API.extension.requestPermission("accesstoken");
+            alert(token === "pending" ? "Toestemming gevraagd..." : "Token gereed!");
         };
 
         init();
