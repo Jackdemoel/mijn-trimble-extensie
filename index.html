@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hello Trimble</title>
+    <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
+</head>
+<body>
+    <h3>Clash Helper</h3>
+    <div id="project-name">Laden...</div>
+    <button id="btn-token">Vraag Access Token</button>
+
+    <script>
+        async function init() {
+            // Maak verbinding met de parent (Trimble Connect) [cite: 67, 68]
+            const API = await TrimbleConnectWorkspace.connect(
+                window.parent, 
+                (event, data) => {
+                    console.log("Event ontvangen:", event, data);
+                }
+            );
+
+            // Haal projectinformatie op ter begroeting [cite: 52, 53, 187]
+            const project = await API.project.getCurrentProject();
+            document.getElementById('project-name').innerText = "Project: " + project.name;
+
+            // Voorbeeld: Vraag toestemming voor een token (nodig voor BCF API's) [cite: 71, 72]
+            document.getElementById('btn-token').onclick = async () => {
+                const token = await API.extension.requestPermission("accesstoken");
+                alert("Token status: " + token); // Geeft 'pending' of het token [cite: 72, 75]
+            };
+        }
+
+        init();
+    </script>
+</body>
+</html>
