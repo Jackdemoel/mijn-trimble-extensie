@@ -1,37 +1,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v1.3</title>
+    <title>BCF Clash Helper v1.4</title>
     <style>
-        body { font-family: sans-serif; padding: 15px; color: #333; background: #f4f4f4; }
+        body { font-family: sans-serif; padding: 10px; color: #333; background: #f4f4f4; }
         .card { border: 1px solid #ddd; padding: 15px; border-radius: 10px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        h3 { margin-top: 0; color: #0078d4; border-bottom: 2px solid #0078d4; padding-bottom: 5px; }
+        h3 { margin-top: 0; color: #0078d4; border-bottom: 2px solid #0078d4; padding-bottom: 5px; font-size: 1.1em; }
         .version { font-size: 0.7em; color: #999; float: right; }
         button { background: #0078d4; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 8px; width: 100%; }
-        button:hover { background: #005a9e; }
-        .secondary-btn { background: #666; }
-        #data-container { margin-top: 15px; font-size: 0.9em; }
-        .section-title { font-weight: bold; margin: 10px 0 5px 0; display: block; color: #444; }
-        .item-box { background: #fafafa; border: 1px solid #eee; padding: 10px; border-radius: 4px; margin-bottom: 8px; border-left: 4px solid #e81123; }
-        .token-info { font-size: 0.8em; color: green; margin-bottom: 10px; display: none; font-weight: bold; }
-        .error { color: #e81123; font-weight: bold; font-size: 0.8em; }
+        button:disabled { background: #ccc; }
+        .clash-card { background: #fafafa; border: 1px solid #eee; padding: 10px; border-radius: 4px; margin-bottom: 10px; border-left: 4px solid #e81123; position: relative; }
+        .clash-card h4 { margin: 0 0 5px 0; font-size: 0.9em; }
+        .clash-card p { margin: 2px 0; font-size: 0.8em; color: #666; }
+        .view-btn { background: #666; font-size: 0.75em; padding: 5px; margin-top: 5px; }
+        #items-container { margin-top: 20px; padding-top: 10px; border-top: 2px dashed #ccc; }
+        .clash-item { background: #fff; border: 1px solid #ddd; padding: 8px; margin-bottom: 5px; font-size: 0.8em; cursor: pointer; }
+        .clash-item:hover { border-color: #0078d4; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
     <div class="card">
-        <span class="version">v1.3</span>
+        <span class="version">v1.4</span>
         <h3>BCF Clash Helper</h3>
-        <div id="project-name">Laden...</div>
+        <div id="project-name" style="font-size: 0.8em; margin-bottom: 10px;">Laden...</div>
         
-        <button id="btn-token">1. Activeer Token</button>
-        <div id="token-status" class="token-info">✔ Token is actief</div>
+        <button id="btn-main-action">Haal Clashsets Op</button>
         
-        <button id="btn-load-clashes" class="secondary-btn">2. Haal Project Clashsets</button>
-        
-        <div id="data-container">
-            <span id="status-msg" class="section-title">Project Data:</span>
-            <div id="content">Activeer eerst het token.</div>
+        <div id="content-area">
+            </div>
+
+        <div id="items-container" style="display:none;">
+            <h4 style="margin:0 0 10px 0;">Individuele Clashes:</h4>
+            <div id="items-list"></div>
         </div>
     </div>
 
