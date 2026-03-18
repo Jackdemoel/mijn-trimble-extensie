@@ -12,6 +12,8 @@ async function init() {
     } catch (error) { console.error(error); }
 }
 
+document.getElementById('product-filter').oninput = renderFilteredItems;
+
 document.getElementById('btn-load-sets').onclick = async () => {
     if (!accessToken) accessToken = await API.extension.requestPermission("accesstoken");
     loadClashSets();
@@ -25,9 +27,8 @@ async function loadClashSets() {
     });
     const sets = await response.json();
     list.innerHTML = sets.map(s => `
-        <div class="clash-set-card" onclick="openClashSet('${s.id}')">
-            <h4>${s.name}</h4>
-            <div style="font-size:11px;">Aantal: ${s.count}</div>
+        <div style="border:1px solid #ddd; padding:10px; margin-bottom:5px; cursor:pointer;" onclick="openClashSet('${s.id}')">
+            <strong>${s.name}</strong><br><small>${s.count} clashes</small>
         </div>
     `).join('');
 }
@@ -35,72 +36,67 @@ async function loadClashSets() {
 async function openClashSet(clashId) {
     document.getElementById('set-selection-area').classList.add('hidden');
     document.getElementById('detail-area').classList.remove('hidden');
+    const list = document.getElementById('clash-items-list');
+    list.innerHTML = "Clashes inladen...";
+
     const response = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
     });
     activeClashItems = await response.json();
-    populateFilter(activeClashItems);
     renderFilteredItems();
 }
 
 function renderFilteredItems() {
-    const selectedType = document.getElementById('type-filter').value;
+    const filterTxt = document.getElementById('product-filter').value.toLowerCase();
     const list = document.getElementById('clash-items-list');
-    const filtered = activeClashItems.filter(i => selectedType === "ALL" || i.elementType1 === selectedType || i.elementType2 === selectedType);
+    
+    // We filteren op de elementName velden, daar staat vaak de productinfo in bij Trimble clashes
+    const filtered = activeClashItems.filter(i => 
+        i.elementName1.toLowerCase().includes(filterTxt) || 
+        i.elementName2.toLowerCase().includes(filterTxt)
+    );
 
     list.innerHTML = filtered.map(i => `
         <div class="clash-item" id="item-${i.id}" onclick="focusClash('${i.id}')">
-            <span class="clash-label">${i.label}</span>
-            <span class="clash-types">${i.elementType1} ↔ ${i.elementType2}</span>
+            <span class="product-name">${i.label}</span>
+            <div class="meta-info">
+                A: ${i.elementName1}<br>
+                B: ${i.elementName2}
+            </div>
         </div>
     `).join('');
 }
 
 async function focusClash(clashItemId) {
-    // Vind de data van het aangeklikte item
     const item = activeClashItems.find(i => i.id === clashItemId);
     if (!item || !API) return;
 
-    // UI Feedback: highlight in lijst
-    document.querySelectorAll('.clash-item').forEach(el => el.classList.remove('active-clash'));
-    document.getElementById(`item-${clashItemId}`).classList.add('active-clash');
+    document.querySelectorAll('.clash-item').forEach(el => el.classList.remove('active'));
+    document.getElementById(`item-${clashItemId}`).classList.add('active');
 
     try {
+        // ESSENTIEEL: We gebruiken de sourceId's direct [cite: 2561]
         const id1 = item.sourceId1.sourceId;
         const id2 = item.sourceId2.sourceId;
 
-        // 1. Selecteer de objecten
+        // Reset viewer en selecteer alleen deze twee objecten
         await API.viewer.setSelection([id1, id2]);
+        
+        // Isoleer actie: verberg de rest [cite: 2355]
+        // In sommige versies van de API moet je een lege array sturen om alles te deselecteren/verbergen
+        await API.viewer.setObjectsVisibility([], true); 
+        await API.viewer.setObjectsVisibility([id1, id2], false);
 
-        // 2. Isoleer de objecten (maak de rest transparant of verberg ze)
-        // We gebruiken de 'presentation' logica uit de spec
-        await API.viewer.setObjectsVisibility([], true); // Verberg alles
-        await API.viewer.setObjectsVisibility([id1, id2], false); // Toon alleen deze twee
-
-        // 3. Zoom naar de clash
-        // De 'center' uit de API-spec geeft de exacte locatie
         if (item.center) {
             await API.viewer.setCameraTarget(item.center.x, item.center.y, item.center.z);
-            // Een kleine afstand om de clash heen
-            await API.viewer.setCameraDistance(2000); 
-        } else {
-            await API.viewer.zoomToSelection();
+            await API.viewer.setCameraDistance(3000);
         }
-
-    } catch (e) { console.error("Viewer actie mislukt:", e); }
-}
-
-function populateFilter(items) {
-    const select = document.getElementById('type-filter');
-    const types = new Set();
-    items.forEach(i => { types.add(i.elementType1); types.add(i.elementType2); });
-    select.innerHTML = '<option value="ALL">Alle types</option>' + 
-        Array.from(types).sort().map(t => `<option value="${t}">${t}</option>`).join('');
+    } catch (e) { console.error("Viewer error:", e); }
 }
 
 function backToSets() {
     document.getElementById('set-selection-area').classList.remove('hidden');
     document.getElementById('detail-area').classList.add('hidden');
 }
-document.getElementById('type-filter').onchange = renderFilteredItems;
+
 init();

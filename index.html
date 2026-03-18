@@ -1,21 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v1.8</title>
+    <title>BCF Clash Helper v1.9</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; color: #333; background: #fff; }
-        .header { background: #f1f1f1; padding: 10px 15px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
-        .header h3 { margin: 0; font-size: 14px; color: #444; }
+        .header { background: #333; padding: 10px 15px; color: white; display: flex; justify-content: space-between; align-items: center; }
+        .header h3 { margin: 0; font-size: 14px; letter-spacing: 1px; }
         .container { padding: 15px; }
-        button { background: #0078d4; color: white; border: none; padding: 8px 12px; border-radius: 2px; cursor: pointer; font-size: 13px; font-weight: 600; width: 100%; margin-bottom: 10px; }
-        .clash-set-card { border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #666; }
-        .filter-section { background: #f9f9f9; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
-        select { width: 100%; padding: 5px; border: 1px solid #ccc; font-size: 13px; }
-        .clash-item { border-bottom: 1px solid #eee; padding: 10px 5px; cursor: pointer; transition: background 0.2s; }
-        .clash-item:hover { background-color: #f0f7ff; }
-        .clash-item.active-clash { background-color: #e1f0ff; border-right: 3px solid #0078d4; }
-        .clash-label { font-weight: bold; font-size: 12px; display: block; }
-        .clash-types { font-size: 11px; color: #0078d4; }
+        button { background: #0078d4; color: white; border: none; padding: 10px; border-radius: 2px; cursor: pointer; font-weight: 600; width: 100%; margin-bottom: 10px; }
+        .clash-item { border-bottom: 1px solid #eee; padding: 12px 5px; cursor: pointer; border-left: 4px solid transparent; }
+        .clash-item:hover { background-color: #f5f5f5; }
+        .clash-item.active { border-left-color: #0078d4; background-color: #f0f7ff; }
+        .product-name { display: block; font-weight: bold; font-size: 12px; color: #0078d4; }
+        .meta-info { font-size: 11px; color: #666; }
+        .filter-area { background: #f1f1f1; padding: 10px; margin-bottom: 15px; }
+        input { width: 100%; padding: 6px; border: 1px solid #ccc; box-sizing: border-box; }
         .hidden { display: none; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
@@ -23,19 +22,19 @@
 <body>
     <div class="header">
         <h3>BCF CLASH HELPER</h3>
-        <span id="project-label" style="font-size: 10px;">v1.8</span>
+        <span style="font-size: 10px;">v1.9</span>
     </div>
 
     <div class="container">
         <div id="set-selection-area">
-            <button id="btn-load-sets">Haal Project Clashsets</button>
+            <button id="btn-load-sets">Haal Clashsets Op</button>
             <div id="clash-sets-list"></div>
         </div>
 
         <div id="detail-area" class="hidden">
-            <button onclick="backToSets()" style="background:#666; margin-bottom:10px;">⬅ Terug</button>
-            <div class="filter-section">
-                <select id="type-filter"><option value="ALL">Alle types</option></select>
+            <button onclick="backToSets()" style="background:#666;">⬅ Terug naar overzicht</button>
+            <div class="filter-area">
+                <input type="text" id="product-filter" placeholder="Zoek op Product Name (bijv. Legrand)...">
             </div>
             <div id="clash-items-list"></div>
         </div>
