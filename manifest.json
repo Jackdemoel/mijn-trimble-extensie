@@ -1,7 +1,7 @@
 {
   "title": "BCF Clash Helper",
-  "icon": "https://jouw-domein.nl/icon.png",
-  "url": "https://jouw-domein.nl/index.html",
+  "icon": "https://github.com/Jackdemoel/mijn-trimble-extensie/blob/main/icon128.png",
+  "url": "https://github.com/Jackdemoel/mijn-trimble-extensie/blob/main/index.html",
   "description": "Filter clashsets en maak BCF issues.",
   "enabled": true
 }
