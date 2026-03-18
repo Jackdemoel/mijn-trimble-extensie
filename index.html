@@ -16,7 +16,7 @@
             (event, data) => {
                 // Hier luisteren we naar gebeurtenissen in de viewer
                 if (event === "extension.command") {
-                    console.log("Commando ontvangen:", data); [cite: 143, 144]
+                    console.log("Commando ontvangen:", data);
                 }
             }
         );
@@ -31,8 +31,8 @@
         console.log("Geladen modellen:", models);
 
         document.getElementById('btn-token').onclick = async () => {
-            const token = await API.extension.requestPermission("accesstoken"); [cite: 71, 198]
-            console.log("Token ontvangen:", token); [cite: 73, 75]
+            const token = await API.extension.requestPermission("accesstoken");
+            console.log("Token ontvangen:", token);
             alert("Token is veilig opgeslagen in de console.");
         };
     }
