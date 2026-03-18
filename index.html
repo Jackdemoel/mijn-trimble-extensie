@@ -1,40 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v1.7</title>
+    <title>BCF Clash Helper v1.8</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 0; margin: 0; color: #333; background: #fff; }
+        body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; color: #333; background: #fff; }
         .header { background: #f1f1f1; padding: 10px 15px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
-        .header h3 { margin: 0; font-size: 14px; font-weight: 600; color: #444; }
+        .header h3 { margin: 0; font-size: 14px; color: #444; }
         .container { padding: 15px; }
-        
         button { background: #0078d4; color: white; border: none; padding: 8px 12px; border-radius: 2px; cursor: pointer; font-size: 13px; font-weight: 600; width: 100%; margin-bottom: 10px; }
-        button:hover { background: #005a9e; }
-        
-        .clash-set-card { border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #666; transition: border-color 0.2s; }
-        .clash-set-card:hover { border-color: #0078d4; }
-        .clash-set-card h4 { margin: 0 0 5px 0; font-size: 13px; }
-        
-        .filter-section { background: #f9f9f9; border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 2px; }
-        .filter-section label { display: block; font-size: 11px; font-weight: bold; margin-bottom: 5px; color: #666; text-transform: uppercase; }
+        .clash-set-card { border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #666; }
+        .filter-section { background: #f9f9f9; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
         select { width: 100%; padding: 5px; border: 1px solid #ccc; font-size: 13px; }
-
-        .clash-item { border-bottom: 1px solid #eee; padding: 10px 5px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .clash-item { border-bottom: 1px solid #eee; padding: 10px 5px; cursor: pointer; transition: background 0.2s; }
         .clash-item:hover { background-color: #f0f7ff; }
-        .clash-info { flex-grow: 1; }
+        .clash-item.active-clash { background-color: #e1f0ff; border-right: 3px solid #0078d4; }
         .clash-label { font-weight: bold; font-size: 12px; display: block; }
-        .clash-types { font-size: 11px; color: #0078d4; margin-top: 3px; }
-        .clash-dist { font-size: 11px; color: #999; }
-        
+        .clash-types { font-size: 11px; color: #0078d4; }
         .hidden { display: none; }
-        .version-tag { font-size: 10px; color: #bbb; position: absolute; bottom: 5px; right: 10px; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
     <div class="header">
         <h3>BCF CLASH HELPER</h3>
-        <span id="project-label" style="font-size: 11px; color: #888;"></span>
+        <span id="project-label" style="font-size: 10px;">v1.8</span>
     </div>
 
     <div class="container">
@@ -44,21 +33,13 @@
         </div>
 
         <div id="detail-area" class="hidden">
-            <button onclick="backToSets()" style="background:#666; margin-bottom:15px;">⬅ Terug naar overzicht</button>
-            
+            <button onclick="backToSets()" style="background:#666; margin-bottom:10px;">⬅ Terug</button>
             <div class="filter-section">
-                <label>Filter op Element Type</label>
-                <select id="type-filter">
-                    <option value="ALL">Alle types tonen</option>
-                </select>
-                <p id="filter-count" style="font-size:11px; margin: 5px 0 0 0; color:#888;"></p>
+                <select id="type-filter"><option value="ALL">Alle types</option></select>
             </div>
-
             <div id="clash-items-list"></div>
         </div>
     </div>
-    
-    <span class="version-tag">v1.7</span>
     <script src="app.js"></script>
 </body>
 </html>
