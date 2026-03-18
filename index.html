@@ -10,27 +10,34 @@
     <button id="btn-token">Vraag Access Token</button>
 
     <script>
-        async function init() {
-            // Maak verbinding met de parent (Trimble Connect) [cite: 67, 68]
-            const API = await TrimbleConnectWorkspace.connect(
-                window.parent, 
-                (event, data) => {
-                    console.log("Event ontvangen:", event, data);
+    async function init() {
+        const API = await TrimbleConnectWorkspace.connect(
+            window.parent, 
+            (event, data) => {
+                // Hier luisteren we naar gebeurtenissen in de viewer
+                if (event === "extension.command") {
+                    console.log("Commando ontvangen:", data); [cite: 143, 144]
                 }
-            );
+            }
+        );
 
-            // Haal projectinformatie op ter begroeting [cite: 52, 53, 187]
-            const project = await API.project.getCurrentProject();
-            document.getElementById('project-name').innerText = "Project: " + project.name;
+        // Projectnaam tonen [cite: 187]
+        const project = await API.project.getCurrentProject();
+        document.getElementById('project-name').innerText = "Project: " + project.name;
 
-            // Voorbeeld: Vraag toestemming voor een token (nodig voor BCF API's) [cite: 71, 72]
-            document.getElementById('btn-token').onclick = async () => {
-                const token = await API.extension.requestPermission("accesstoken");
-                alert("Token status: " + token); // Geeft 'pending' of het token [cite: 72, 75]
-            };
-        }
+        // Nieuwe functie: Haal geladen modellen op
+        // Dit is de eerste stap om te zien waar clashes vandaan komen
+        const models = await API.viewer.getModels(); 
+        console.log("Geladen modellen:", models);
 
-        init();
-    </script>
+        document.getElementById('btn-token').onclick = async () => {
+            const token = await API.extension.requestPermission("accesstoken"); [cite: 71, 198]
+            console.log("Token ontvangen:", token); [cite: 73, 75]
+            alert("Token is veilig opgeslagen in de console.");
+        };
+    }
+
+    init();
+</script>
 </body>
 </html>
