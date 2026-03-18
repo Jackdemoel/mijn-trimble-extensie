@@ -2,6 +2,6 @@
   "title": "BCF Clash Helper",
   "icon": "https://jackdemoel.github.io/mijn-trimble-extensie/QR-logo-toolbar.svg",
   "url": "https://jackdemoel.github.io/mijn-trimble-extensie/index.html",
-  "description": "Filter clashsets en maak BCF issues.",
+  "description": "Filter clashsets en genereer BCF issues direct vanuit de 3D viewer.",
   "enabled": true
 }

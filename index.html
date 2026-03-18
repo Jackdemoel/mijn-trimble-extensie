@@ -1,51 +1,81 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Hello Trimble</title>
+    <title>BCF Clash Helper</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; color: #333; }
+        .card { border: 1px solid #ccc; padding: 15px; border-radius: 8px; background: #f9f9f9; }
+        button { background: #0078d4; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+        button:hover { background: #005a9e; }
+        #status { margin-top: 15px; font-size: 0.9em; color: #666; }
+    </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
-    <h3>Clash Helper</h3>
-    <div id="project-name">Laden...</div>
-    <button id="btn-token">Vraag Access Token</button>
+    <div class="card">
+        <h3>BCF Clash Helper</h3>
+        <div id="project-name">Verbinden met Trimble Connect...</div>
+        
+        <button id="btn-token">Vraag Access Token</button>
+        
+        <div id="status">Bekijk de browser console (F12) voor technische details.</div>
+    </div>
 
     <script>
-    async function init() {
-        const API = await TrimbleConnectWorkspace.connect(
-            window.parent, 
-            (event, data) => {
-                // Hier luisteren we naar gebeurtenissen in de viewer
-                if (event === "extension.command") {
-                    console.log("Commando ontvangen:", data);
+        let API;
+
+        async function init() {
+            try {
+                // Initialiseer de verbinding met de 3D Viewer
+                API = await TrimbleConnectWorkspace.connect(
+                    window.parent, 
+                    (event, data) => {
+                        console.log("Event ontvangen van viewer:", event, data);
+                    }
+                );
+
+                // Haal huidige projectinformatie op
+                const project = await API.project.getCurrentProject();
+                document.getElementById('project-name').innerText = "Project: " + project.name;
+                console.log("Project info geladen:", project);
+
+                // Haal lijst met geladen modellen op
+                const models = await API.viewer.getModels();
+                console.log("Geladen modellen in viewer:", models);
+
+                // Probeer clashsets op te halen (indien ondersteund door viewer module)
+                if (API.viewer.getClashSets) {
+                    const clashSets = await API.viewer.getClashSets();
+                    console.log("Beschikbare clashsets:", clashSets);
                 }
+
+            } catch (error) {
+                console.error("Fout bij initialiseren API:", error);
+                document.getElementById('project-name').innerText = "Verbindingsfout. Controleer console.";
             }
-        );
+        }
 
-        // Projectnaam tonen [cite: 187]
-        const project = await API.project.getCurrentProject();
-        document.getElementById('project-name').innerText = "Project: " + project.name;
-		// Voeg dit toe onder je projectnaam-code
-try {
-    // We vragen de viewer om actieve clash-data
-    // Let op: sommige functies vereisen dat er eerst een model geladen is [cite: 264, 295]
-    const status = await API.viewer.getClashSets(); 
-    console.log("Beschikbare clashsets:", status);
-} catch (e) {
-    console.log("Clashsets nog niet beschikbaar: ", e);
-}
-        // Nieuwe functie: Haal geladen modellen op
-        // Dit is de eerste stap om te zien waar clashes vandaan komen
-        const models = await API.viewer.getModels(); 
-        console.log("Geladen modellen:", models);
-
+        // Token aanvraag knop functionaliteit
         document.getElementById('btn-token').onclick = async () => {
-            const token = await API.extension.requestPermission("accesstoken");
-            console.log("Token ontvangen:", token);
-            alert("Token is veilig opgeslagen in de console.");
+            if (!API) return alert("API nog niet verbonden");
+            
+            try {
+                // Vraag toestemming voor het token
+                const token = await API.extension.requestPermission("accesstoken");
+                console.log("Access Token status/waarde:", token);
+                
+                if (token === "pending") {
+                    alert("Accepteer de toestemming in het Trimble Connect venster.");
+                } else {
+                    alert("Token succesvol ontvangen! Zie console voor de waarde.");
+                }
+            } catch (err) {
+                console.error("Fout bij token aanvraag:", err);
+            }
         };
-    }
 
-    init();
-</script>
+        // Start de applicatie
+        init();
+    </script>
 </body>
 </html>
