@@ -1,46 +1,67 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v2.6</title>
+    <title>BCF Clash Helper v2.7</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; color: #333; background: #fff; }
         .header { background: #333; padding: 10px 15px; color: white; display: flex; justify-content: space-between; align-items: center; }
-        .header h3 { margin: 0; font-size: 14px; }
+        .header h3 { margin: 0; font-size: 14px; text-transform: uppercase; }
         .container { padding: 15px; }
+        
+        /* Trimble Style Buttons */
         button { background: #0078d4; color: white; border: none; padding: 10px; border-radius: 2px; cursor: pointer; font-weight: 600; width: 100%; margin-bottom: 10px; }
-        .clash-card { border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #444; }
-        .filter-area { background: #f1f1f1; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; }
-        input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; }
-        .clash-item { border-bottom: 1px solid #eee; padding: 10px 5px; cursor: pointer; border-left: 3px solid transparent; }
+        button:hover { background: #005a9e; }
+        .secondary-btn { background: #666; }
+
+        /* Clash Set Cards */
+        .clash-card { border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #444; background: #fafafa; }
+        .clash-card:hover { border-color: #0078d4; }
+
+        /* Filter UI */
+        .filter-area { background: #f1f1f1; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 2px; }
+        .filter-area label { display: block; font-size: 11px; font-weight: bold; margin-bottom: 5px; color: #555; }
+        select, input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 2px; margin-bottom: 8px; font-size: 13px; }
+
+        /* Individual Clash Items */
+        .clash-item { border-bottom: 1px solid #eee; padding: 12px 5px; cursor: pointer; border-left: 3px solid transparent; transition: all 0.2s; }
         .clash-item:hover { background-color: #f0f7ff; }
         .clash-item.active { border-left-color: #0078d4; background-color: #e1f0ff; }
         .product-label { display: block; font-weight: bold; font-size: 12px; color: #0078d4; }
-        .meta-info { font-size: 11px; color: #666; margin-top: 4px; }
+        .meta-info { font-size: 11px; color: #666; margin-top: 4px; line-height: 1.4; }
+
         .hidden { display: none; }
-        .status-tag { font-size: 10px; color: green; font-weight: bold; margin-bottom: 5px; display: block; }
+        .v-tag { font-size: 10px; color: #999; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
     <div class="header">
         <h3>BCF CLASH HELPER</h3>
-        <span style="font-size: 10px;">v2.6</span>
+        <span class="v-tag">v2.7</span>
     </div>
 
     <div class="container">
-        <div id="project-name" style="font-size: 12px; font-weight: bold; margin-bottom: 10px;">Laden...</div>
+        <div id="project-name" style="font-size: 11px; font-weight: bold; margin-bottom: 12px; color: #666;">Laden...</div>
         
         <div id="set-selection-area">
-            <button id="btn-load-sets">Haal Clashsets Op</button>
+            <button id="btn-load-sets">Haal Project Clashsets</button>
             <div id="clash-sets-list"></div>
         </div>
 
         <div id="detail-area" class="hidden">
-            <button id="btn-back" style="background:#666;">⬅ Terug naar overzicht</button>
+            <button id="btn-back" class="secondary-btn">⬅ Terug naar overzicht</button>
+            
             <div class="filter-area">
-                <label style="font-size: 11px; font-weight: bold;">FILTER OP PRODUCT NAAM:</label>
-                <input type="text" id="product-filter" placeholder="Type bijv. 'Pipe' of 'Cable'...">
+                <label>ZOEK OP PRODUCT NAAM:</label>
+                <input type="text" id="text-filter" placeholder="Bijv: Pipe, Legrand, Duct...">
+                
+                <label>FILTER OP TYPE:</label>
+                <select id="type-dropdown">
+                    <option value="ALL">Alle types tonen</option>
+                </select>
+                <div id="filter-stats" style="font-size: 10px; color: #888; margin-top: 5px;"></div>
             </div>
+
             <div id="clash-items-list"></div>
         </div>
     </div>
@@ -50,28 +71,27 @@
         let accessToken = null;
         let currentProjectId = null;
         let activeClashItems = [];
-        const API_BASE_URL = "https://app21.connect.trimble.com/tc/api/2.0";
+        const API_BASE_URL = "https://app21.connect.trimble.com/tc/api/2.0"; // EU Region [cite: 577]
 
         async function init() {
             try {
-                // Verbinding maken met Trimble Connect [cite: 68]
+                // Verbinding met Trimble Connect [cite: 68, 139, 341]
                 API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
-                    console.log("Viewer Event:", event, data);
+                    console.log("Event:", event, data);
                 });
 
-                // Haal projectgegevens op [cite: 53, 187]
-                const project = await API.project.getCurrentProject();
+                const project = await API.project.getCurrentProject(); // [cite: 53, 187]
                 currentProjectId = project.id;
-                document.getElementById('project-name').innerText = "Project: " + project.name;
+                document.getElementById('project-name').innerText = "PROJECT: " + project.name.toUpperCase();
             } catch (error) {
-                console.error("Fout bij opstarten:", error);
+                console.error("Startfout:", error);
             }
         }
 
-        // Hoofdactie
+        // Hoofdknop actie
         document.getElementById('btn-load-sets').onclick = async () => {
             if (!accessToken) {
-                // Automatisch token aanvragen als we het nog niet hebben [cite: 71, 198]
+                // Token aanvragen bij eerste gebruik [cite: 71, 198]
                 accessToken = await API.extension.requestPermission("accesstoken");
             }
             if (accessToken && accessToken !== "pending") {
@@ -83,6 +103,7 @@
             const list = document.getElementById('clash-sets-list');
             list.innerHTML = "Ophalen...";
             try {
+                // [cite: 719]
                 const response = await fetch(`${API_BASE_URL}/clashsets?projectId=${currentProjectId}`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` }
                 });
@@ -94,7 +115,7 @@
                     </div>
                 `).join('');
             } catch (err) {
-                list.innerHTML = "Fout bij laden van data.";
+                list.innerHTML = "Fout bij laden van sets.";
             }
         }
 
@@ -102,101 +123,97 @@
             document.getElementById('set-selection-area').classList.add('hidden');
             document.getElementById('detail-area').classList.remove('hidden');
             const list = document.getElementById('clash-items-list');
-            list.innerHTML = "Clashes laden...";
+            list.innerHTML = "Items inladen...";
 
             try {
+                // [cite: 730]
                 const response = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` }
                 });
                 activeClashItems = await response.json();
+                
+                // Vul de type dropdown
+                populateTypeFilter();
                 renderFilteredItems();
             } catch (err) {
-                list.innerHTML = "Fout bij ophalen items.";
+                list.innerHTML = "Fout bij ophalen van clash items.";
             }
+        }
+
+        function populateTypeFilter() {
+            const dropdown = document.getElementById('type-dropdown');
+            const types = new Set();
+            activeClashItems.forEach(i => {
+                if (i.elementType1) types.add(i.elementType1);
+                if (i.elementType2) types.add(i.elementType2);
+            });
+            dropdown.innerHTML = '<option value="ALL">Alle types tonen</option>' + 
+                Array.from(types).sort().map(t => `<option value="${t}">${t}</option>`).join('');
         }
 
         function renderFilteredItems() {
-            const filterTxt = document.getElementById('product-filter').value.toLowerCase();
+            const textFilter = document.getElementById('text-filter').value.toLowerCase();
+            const typeFilter = document.getElementById('type-dropdown').value;
             const list = document.getElementById('clash-items-list');
             
-            const filtered = activeClashItems.filter(i => 
-                (i.elementName1 && i.elementName1.toLowerCase().includes(filterTxt)) || 
-                (i.elementName2 && i.elementName2.toLowerCase().includes(filterTxt))
-            );
+            const filtered = activeClashItems.filter(i => {
+                const nameMatch = i.elementName1.toLowerCase().includes(textFilter) || 
+                                  i.elementName2.toLowerCase().includes(textFilter);
+                const typeMatch = typeFilter === "ALL" || 
+                                  i.elementType1 === typeFilter || 
+                                  i.elementType2 === typeFilter;
+                return nameMatch && typeMatch;
+            });
 
-            list.innerHTML = filtered.slice(0, 50).map(i => `
+            list.innerHTML = filtered.slice(0, 100).map(i => `
                 <div class="clash-item" id="item-${i.id}" onclick="focusClash('${i.id}')">
                     <span class="product-label">${i.label}</span>
                     <div class="meta-info">
-                        A: ${i.elementName1}<br>
-                        B: ${i.elementName2}
+                        <strong>A:</strong> ${i.elementName1}<br>
+                        <strong>B:</strong> ${i.elementName2}<br>
+                        <span style="color:#0078d4">Dist: ${i.distance} mm</span>
                     </div>
                 </div>
-            `).join('') + (filtered.length > 50 ? "<p style='font-size:10px;'>...lijst beperkt tot 50 items</p>" : "");
+            `).join('') + (filtered.length > 100 ? "<p style='font-size:10px;'>...lijst beperkt tot 100 items</p>" : "");
+            
+            document.getElementById('filter-stats').innerText = `${filtered.length} van de ${activeClashItems.length} clashes getoond.`;
         }
 
         async function focusClash(clashItemId) {
-    const item = activeClashItems.find(i => i.id === clashItemId);
-    if (!item || !API) return;
+            const item = activeClashItems.find(i => i.id === clashItemId);
+            if (!item || !API) return;
 
-    // UI Visuele feedback
-    document.querySelectorAll('.clash-item').forEach(el => el.classList.remove('active'));
-    const listElement = document.getElementById(`item-${clashItemId}`);
-    if (listElement) listElement.classList.add('active');
+            document.querySelectorAll('.clash-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(`item-${clashItemId}`).classList.add('active');
 
-    try {
-        /**
-         * We proberen nu exact de structuur na te bootsen die je in de logs zag.
-         * De viewer lijkt 'objectRuntimeIds' nodig te hebben in plaats van 'objectIds'.
-         * Omdat we die nog niet direct hebben, proberen we eerst de 'sourceId' 
-         * methode, maar met de exacte veldnamen uit je log.
-         */
-        const selectionData = [
-            {
-                modelId: item.sourceId1.versionId,
-                // We proberen hier 'objectIds' (voor source GUIDs) 
-                // De viewer vertaalt dit intern vaak naar de runtimeIds uit je log
-                objectIds: [item.sourceId1.sourceId] 
-            },
-            {
-                modelId: item.sourceId2.versionId,
-                objectIds: [item.sourceId2.sourceId]
+            try {
+                // Correcte structuur met modelId en objectIds (Bron: HAR & API Spec 3.0.1)
+                const selectionData = [
+                    { modelId: item.sourceId1.versionId, objectIds: [item.sourceId1.sourceId] },
+                    { modelId: item.sourceId2.versionId, objectIds: [item.sourceId2.sourceId] }
+                ];
+
+                // 1. Selecteer de twee botsende objecten
+                await API.viewer.setSelection(selectionData);
+
+                // 2. Camera focus via target coördinaten [cite: 2292, 2304]
+                if (item.center) {
+                    await API.viewer.setCameraTarget(item.center.x, item.center.y, item.center.z);
+                    await API.viewer.setCameraDistance(2000); 
+                }
+            } catch (e) {
+                console.error("Viewer error:", e);
             }
-        ];
-
-        console.log("Poging tot selectie met data:", selectionData);
-
-        // 1. Selectie
-        await API.viewer.setSelection(selectionData);
-
-        // 2. Isolatie (Ghost mode / Verbergen)
-        // We proberen de 'Ghost' mode te forceren zoals de echte tool
-        // Eerst alles naar transparant/ghost
-        await API.viewer.setObjectsVisibility([], true); 
-        
-        // Dan onze specifieke objecten op 'zichtbaar' (false voor hidden)
-        await API.viewer.setObjectsVisibility(selectionData, false);
-
-        // 3. Camera target op het botsingspunt (center)
-        if (item.center) {
-            // De coördinaten uit de Clash API zijn in mm [cite: 2562]
-            await API.viewer.setCameraTarget(item.center.x, item.center.y, item.center.z);
-            await API.viewer.setCameraDistance(2000); 
         }
 
-    } catch (e) {
-        console.error("Focus fout:", e);
-        // Fallback: Als de bovenstaande structuur faalt, probeer 'zoomToSelection'
-        API.viewer.zoomToSelection();
-    }
-}
-        // UI Events
+        // UI Event Listeners
         document.getElementById('btn-back').onclick = () => {
             document.getElementById('set-selection-area').classList.remove('hidden');
             document.getElementById('detail-area').classList.add('hidden');
         };
 
-        document.getElementById('product-filter').oninput = renderFilteredItems;
+        document.getElementById('text-filter').oninput = renderFilteredItems;
+        document.getElementById('type-dropdown').onchange = renderFilteredItems;
 
         init();
     </script>
