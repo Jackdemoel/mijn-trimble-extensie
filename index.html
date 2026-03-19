@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v2.3</title>
+    <title>BCF Clash Helper v2.5</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; color: #333; background: #fff; }
         .header { background: #333; padding: 10px 15px; color: white; display: flex; justify-content: space-between; align-items: center; }
@@ -24,7 +24,7 @@
 <body>
     <div class="header">
         <h3>BCF CLASH HELPER</h3>
-        <span style="font-size: 10px;">v2.4</span>
+        <span style="font-size: 10px;">v2.5</span>
     </div>
 
     <div class="container">
@@ -136,38 +136,63 @@
         }
 
         async function focusClash(clashItemId) {
-            const item = activeClashItems.find(i => i.id === clashItemId);
-            if (!item || !API) return;
+    // 1. Zoek de data van de aangeklikte clash op
+    const item = activeClashItems.find(i => i.id === clashItemId);
+    if (!item || !API) return;
 
-            document.querySelectorAll('.clash-item').forEach(el => el.classList.remove('active'));
-            document.getElementById(`item-${clashItemId}`).classList.add('active');
+    // UI: Markeer het item in de lijst
+    document.querySelectorAll('.clash-item').forEach(el => el.classList.remove('active'));
+    document.getElementById(`item-${clashItemId}`).classList.add('active');
 
-            try {
-                // Correcte structuur voor object-selectie
-                const selectionData = [];
-                if (item.sourceId1) {
-                    selectionData.push({ modelId: item.sourceId1.versionId, objectIds: [item.sourceId1.sourceId] });
-                }
-                if (item.sourceId2) {
-                    selectionData.push({ modelId: item.sourceId2.versionId, objectIds: [item.sourceId2.sourceId] });
-                }
+    try {
+        /**
+         * CRUCIAL: De 'selectionData' moet een array van objecten zijn.
+         * Elk object definieert welk model (modelId) en welke objecten (objectIds).
+         * De 'versionId' uit de Clash API is de 'modelId' voor de viewer.
+         */
+        const selectionData = [];
 
-                // 1. Selecteer objecten
-                await API.viewer.setSelection(selectionData);
-
-                // 2. Isoleer (verberg rest)
-                await API.viewer.setObjectsVisibility([], true); 
-                await API.viewer.setObjectsVisibility(selectionData, false);
-
-                // 3. Camera focus [cite: 294, 309]
-                if (item.center) {
-                    await API.viewer.setCameraTarget(item.center.x, item.center.y, item.center.z);
-                    await API.viewer.setCameraDistance(2000);
-                }
-            } catch (e) {
-                console.error("Viewer error:", e);
-            }
+        if (item.sourceId1 && item.sourceId1.versionId) {
+            selectionData.push({
+                modelId: item.sourceId1.versionId,   // Dit is het ID van het .ifc bestand
+                objectIds: [item.sourceId1.sourceId] // Dit is het ID van het specifieke object (buis/tray)
+            });
         }
+
+        if (item.sourceId2 && item.sourceId2.versionId) {
+            selectionData.push({
+                modelId: item.sourceId2.versionId,
+                objectIds: [item.sourceId2.sourceId]
+            });
+        }
+
+        console.log("Stuur selectie naar viewer:", selectionData);
+
+        // STAP A: Selecteer de specifieke objecten
+        // Dit zorgt ervoor dat alleen de twee botsende elementen oplichten (vaak paars)
+        await API.viewer.setSelection(selectionData);
+
+        // STAP B: Isolatie (De 'Ghost' mode voorkomen)
+        // We verbergen eerst ALLES (lege array + true)
+        await API.viewer.setObjectsVisibility([], true); 
+        
+        // Daarna maken we alleen onze selectie weer zichtbaar (selectionData + false)
+        // In de Workspace API betekent 'false' voor hidden: "niet verbergen"
+        await API.viewer.setObjectsVisibility(selectionData, false);
+
+        // STAP C: Camera naar het nulpunt van de clash
+        if (item.center) {
+            await API.viewer.setCameraTarget(item.center.x, item.center.y, item.center.z);
+            await API.viewer.setCameraDistance(2500); // Zoom in op 2.5 meter afstand
+        } else {
+            // Fallback als er geen center is: zoom op de selectie
+            await API.viewer.zoomToSelection();
+        }
+
+    } catch (e) {
+        console.error("Fout tijdens viewer interactie:", e);
+    }
+}
 
         // UI Events
         document.getElementById('btn-back').onclick = () => {
