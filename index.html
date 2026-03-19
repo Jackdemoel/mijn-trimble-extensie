@@ -1,44 +1,183 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v2.1</title>
+    <title>BCF Clash Helper v2.3</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; color: #333; background: #fff; }
         .header { background: #333; padding: 10px 15px; color: white; display: flex; justify-content: space-between; align-items: center; }
-        .header h3 { margin: 0; font-size: 14px; letter-spacing: 1px; }
+        .header h3 { margin: 0; font-size: 14px; }
         .container { padding: 15px; }
         button { background: #0078d4; color: white; border: none; padding: 10px; border-radius: 2px; cursor: pointer; font-weight: 600; width: 100%; margin-bottom: 10px; }
-        .clash-item { border-bottom: 1px solid #eee; padding: 12px 5px; cursor: pointer; border-left: 4px solid transparent; }
-        .clash-item:hover { background-color: #f5f5f5; }
-        .clash-item.active { border-left-color: #0078d4; background-color: #f0f7ff; }
-        .product-name { display: block; font-weight: bold; font-size: 12px; color: #0078d4; }
-        .meta-info { font-size: 11px; color: #666; }
-        .filter-area { background: #f1f1f1; padding: 10px; margin-bottom: 15px; }
-        input { width: 100%; padding: 8px; border: 1px solid #ccc; box-sizing: border-box; }
+        .clash-card { border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #444; }
+        .filter-area { background: #f1f1f1; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; }
+        input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; }
+        .clash-item { border-bottom: 1px solid #eee; padding: 10px 5px; cursor: pointer; border-left: 3px solid transparent; }
+        .clash-item:hover { background-color: #f0f7ff; }
+        .clash-item.active { border-left-color: #0078d4; background-color: #e1f0ff; }
+        .product-label { display: block; font-weight: bold; font-size: 12px; color: #0078d4; }
+        .meta-info { font-size: 11px; color: #666; margin-top: 4px; }
         .hidden { display: none; }
+        .status-tag { font-size: 10px; color: green; font-weight: bold; margin-bottom: 5px; display: block; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
     <div class="header">
         <h3>BCF CLASH HELPER</h3>
-        <span style="font-size: 10px;">v2.3</span>
+        <span style="font-size: 10px;">v2.4</span>
     </div>
 
     <div class="container">
+        <div id="project-name" style="font-size: 12px; font-weight: bold; margin-bottom: 10px;">Laden...</div>
+        
         <div id="set-selection-area">
-            <button id="btn-load-sets">Haal Project Clashsets</button>
+            <button id="btn-load-sets">Haal Clashsets Op</button>
             <div id="clash-sets-list"></div>
         </div>
 
         <div id="detail-area" class="hidden">
-            <button onclick="backToSets()" style="background:#666;">⬅ Terug naar overzicht</button>
+            <button id="btn-back" style="background:#666;">⬅ Terug naar overzicht</button>
             <div class="filter-area">
-                <input type="text" id="product-filter" placeholder="Filter op Product Name...">
+                <label style="font-size: 11px; font-weight: bold;">FILTER OP PRODUCT NAAM:</label>
+                <input type="text" id="product-filter" placeholder="Type bijv. 'Pipe' of 'Cable'...">
             </div>
             <div id="clash-items-list"></div>
         </div>
     </div>
-    <script src="app.js"></script>
+
+    <script>
+        let API;
+        let accessToken = null;
+        let currentProjectId = null;
+        let activeClashItems = [];
+        const API_BASE_URL = "https://app21.connect.trimble.com/tc/api/2.0";
+
+        async function init() {
+            try {
+                // Verbinding maken met Trimble Connect [cite: 68]
+                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
+                    console.log("Viewer Event:", event, data);
+                });
+
+                // Haal projectgegevens op [cite: 53, 187]
+                const project = await API.project.getCurrentProject();
+                currentProjectId = project.id;
+                document.getElementById('project-name').innerText = "Project: " + project.name;
+            } catch (error) {
+                console.error("Fout bij opstarten:", error);
+            }
+        }
+
+        // Hoofdactie
+        document.getElementById('btn-load-sets').onclick = async () => {
+            if (!accessToken) {
+                // Automatisch token aanvragen als we het nog niet hebben [cite: 71, 198]
+                accessToken = await API.extension.requestPermission("accesstoken");
+            }
+            if (accessToken && accessToken !== "pending") {
+                loadClashSets();
+            }
+        };
+
+        async function loadClashSets() {
+            const list = document.getElementById('clash-sets-list');
+            list.innerHTML = "Ophalen...";
+            try {
+                const response = await fetch(`${API_BASE_URL}/clashsets?projectId=${currentProjectId}`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const sets = await response.json();
+                list.innerHTML = sets.map(s => `
+                    <div class="clash-card" onclick="openClashSet('${s.id}')">
+                        <strong>${s.name}</strong><br>
+                        <small>${s.count} clashes gevonden</small>
+                    </div>
+                `).join('');
+            } catch (err) {
+                list.innerHTML = "Fout bij laden van data.";
+            }
+        }
+
+        async function openClashSet(clashId) {
+            document.getElementById('set-selection-area').classList.add('hidden');
+            document.getElementById('detail-area').classList.remove('hidden');
+            const list = document.getElementById('clash-items-list');
+            list.innerHTML = "Clashes laden...";
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                activeClashItems = await response.json();
+                renderFilteredItems();
+            } catch (err) {
+                list.innerHTML = "Fout bij ophalen items.";
+            }
+        }
+
+        function renderFilteredItems() {
+            const filterTxt = document.getElementById('product-filter').value.toLowerCase();
+            const list = document.getElementById('clash-items-list');
+            
+            const filtered = activeClashItems.filter(i => 
+                (i.elementName1 && i.elementName1.toLowerCase().includes(filterTxt)) || 
+                (i.elementName2 && i.elementName2.toLowerCase().includes(filterTxt))
+            );
+
+            list.innerHTML = filtered.slice(0, 50).map(i => `
+                <div class="clash-item" id="item-${i.id}" onclick="focusClash('${i.id}')">
+                    <span class="product-label">${i.label}</span>
+                    <div class="meta-info">
+                        A: ${i.elementName1}<br>
+                        B: ${i.elementName2}
+                    </div>
+                </div>
+            `).join('') + (filtered.length > 50 ? "<p style='font-size:10px;'>...lijst beperkt tot 50 items</p>" : "");
+        }
+
+        async function focusClash(clashItemId) {
+            const item = activeClashItems.find(i => i.id === clashItemId);
+            if (!item || !API) return;
+
+            document.querySelectorAll('.clash-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(`item-${clashItemId}`).classList.add('active');
+
+            try {
+                // Correcte structuur voor object-selectie
+                const selectionData = [];
+                if (item.sourceId1) {
+                    selectionData.push({ modelId: item.sourceId1.versionId, objectIds: [item.sourceId1.sourceId] });
+                }
+                if (item.sourceId2) {
+                    selectionData.push({ modelId: item.sourceId2.versionId, objectIds: [item.sourceId2.sourceId] });
+                }
+
+                // 1. Selecteer objecten
+                await API.viewer.setSelection(selectionData);
+
+                // 2. Isoleer (verberg rest)
+                await API.viewer.setObjectsVisibility([], true); 
+                await API.viewer.setObjectsVisibility(selectionData, false);
+
+                // 3. Camera focus [cite: 294, 309]
+                if (item.center) {
+                    await API.viewer.setCameraTarget(item.center.x, item.center.y, item.center.z);
+                    await API.viewer.setCameraDistance(2000);
+                }
+            } catch (e) {
+                console.error("Viewer error:", e);
+            }
+        }
+
+        // UI Events
+        document.getElementById('btn-back').onclick = () => {
+            document.getElementById('set-selection-area').classList.remove('hidden');
+            document.getElementById('detail-area').classList.add('hidden');
+        };
+
+        document.getElementById('product-filter').oninput = renderFilteredItems;
+
+        init();
+    </script>
 </body>
 </html>
