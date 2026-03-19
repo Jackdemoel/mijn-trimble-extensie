@@ -121,35 +121,56 @@
         }
 
         async function focusClash(clashItemId) {
-            const item = activeClashItems.find(i => i.id === clashItemId);
-            if (!item || !API) return;
+    const item = activeClashItems.find(i => i.id === clashItemId);
+    if (!item || !API) return;
 
-            document.querySelectorAll('.clash-item').forEach(el => el.classList.remove('active'));
-            document.getElementById(`item-${clashItemId}`).classList.add('active');
+    // UI Visuele feedback
+    document.querySelectorAll('.clash-item').forEach(el => el.classList.remove('active'));
+    const activeEl = document.getElementById(`item-${clashItemId}`);
+    if (activeEl) activeEl.classList.add('active');
 
-            try {
-                // STAP 1: Selectie met de modelId/objectIds structuur [cite: 1, 1794]
-                const sel = [
-                    { modelId: item.sourceId1.versionId, objectIds: [item.sourceId1.sourceId] },
-                    { modelId: item.sourceId2.versionId, objectIds: [item.sourceId2.sourceId] }
-                ];
-                await API.viewer.setSelection(sel);
-
-                // STAP 2: Camera met correcte schaling (mm naar meters) [cite: 1, 1726]
-                if (item.center) {
-                    const factor = 0.001; 
-                    const targetX = item.center.x * factor;
-                    const targetY = item.center.y * factor;
-                    const targetZ = item.center.z * factor;
-
-                    await API.viewer.setCamera({
-                        lookAt: { x: targetX, y: targetY, z: targetZ },
-                        position: { x: targetX + 1.5, y: targetY + 1.5, z: targetZ + 1.5 },
-                        projectionType: "perspective"
-                    });
-                }
-            } catch (e) { console.error("Viewer error:", e); }
+    try {
+        // Stap 1: Definieer de selectie data [cite: 10111, 10131]
+        const selectionData = [];
+        if (item.sourceId1) {
+            selectionData.push({ modelId: item.sourceId1.versionId, objectIds: [item.sourceId1.sourceId] });
         }
+        if (item.sourceId2) {
+            selectionData.push({ modelId: item.sourceId2.versionId, objectIds: [item.sourceId2.sourceId] });
+        }
+
+        // Stap 2: Voer de selectie uit
+        await API.viewer.setSelection(selectionData);
+
+        // Stap 3: ISOLATIE (Ghost mode) [cite: 8592, 8594]
+        // We gebruiken de commando's die in je HAR-log naar voren komen
+        await API.viewer.setObjectsVisibility([], true); // Verberg alles (Ghost mode aan)
+        await API.viewer.setObjectsVisibility(selectionData, false); // Maak alleen de clash-objecten zichtbaar
+
+        // Stap 4: Inzoomen (Passen in venster)
+        // In plaats van handmatige coördinaten gebruiken we de native zoom functie
+        // die de viewer intern ook aanroept na de selectie.
+        if (typeof API.viewer.zoomToSelection === "function") {
+            await API.viewer.zoomToSelection();
+        } else {
+            // Fallback: Gebruik de center coördinaten met de juiste schaling (meters) 
+            const factor = 0.001; 
+            const target = { 
+                x: item.center.x * factor, 
+                y: item.center.y * factor, 
+                z: item.center.z * factor 
+            };
+            
+            await API.viewer.setCamera({
+                lookAt: target,
+                position: { x: target.x + 1, y: target.y + 1, z: target.z + 1 },
+                projectionType: "perspective"
+            });
+        }
+    } catch (e) {
+        console.error("Fout bij focussen clash:", e);
+    }
+}
 
         document.getElementById('btn-back').onclick = () => {
             document.getElementById('set-selection-area').classList.remove('hidden');
