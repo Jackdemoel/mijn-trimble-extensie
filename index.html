@@ -1,30 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v3.1</title>
+    <title>BCF Clash Helper v3.2</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; background: #fff; color: #333; }
         .header { background: #333; padding: 10px 15px; color: white; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0078d4; }
         .header h3 { margin: 0; font-size: 14px; text-transform: uppercase; }
         .container { padding: 15px; }
-        
         button { background: #0078d4; color: white; border: none; padding: 10px; border-radius: 2px; cursor: pointer; font-weight: 600; width: 100%; margin-bottom: 10px; }
-        button:hover { background: #005a9e; }
-        
         .clash-card { border: 1px solid #ddd; padding: 12px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #444; background: #fafafa; }
-        .clash-card:hover { border-color: #0078d4; }
-
         .filter-box { background: #f1f1f1; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; }
-        .filter-box label { display: block; font-size: 11px; font-weight: bold; color: #666; margin-bottom: 5px; }
-        select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 2px; font-size: 13px; }
-
         .clash-item { border-bottom: 1px solid #eee; padding: 12px 8px; cursor: pointer; border-left: 4px solid transparent; }
         .clash-item:hover { background-color: #f0f7ff; }
         .clash-item.active { border-left-color: #0078d4; background-color: #e1f0ff; }
-        
         .product-title { display: block; font-weight: bold; font-size: 13px; color: #0078d4; margin-bottom: 4px; }
         .product-meta { font-size: 11px; color: #555; line-height: 1.4; }
-        
         .hidden { display: none; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
@@ -32,14 +22,14 @@
 <body>
     <div class="header">
         <h3>BCF CLASH HELPER</h3>
-        <span style="font-size: 10px;">v3.1</span>
+        <span style="font-size: 10px;">v3.2</span>
     </div>
 
     <div class="container">
         <div id="project-label" style="font-size: 11px; margin-bottom: 12px; font-weight: bold; color: #666;">VERBINDEN...</div>
         
         <div id="set-selection-area">
-            <button id="btn-load-sets">LADEN: PROJECT CLASHSETS</button>
+            <button id="btn-load-sets">HAAL PROJECT CLASHSETS</button>
             <div id="clash-sets-list"></div>
         </div>
 
@@ -47,8 +37,8 @@
             <button id="btn-back" style="background:#666; width: auto; padding: 5px 15px;">⬅ OVERZICHT</button>
             
             <div class="filter-box">
-                <label>SNEL FILTER (PRODUCT NAAM):</label>
-                <select id="product-dropdown">
+                <label style="font-size: 11px; font-weight: bold;">FILTER OP PRODUCT:</label>
+                <select id="product-dropdown" style="width:100%; padding:8px; margin-top:5px;">
                     <option value="ALL">-- Toon alle clashes --</option>
                 </select>
             </div>
@@ -67,57 +57,39 @@
         async function init() {
             try {
                 API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
-                    // Debug events
+                    // Ontvangt events zoals onSelectionChanged
                 });
                 const project = await API.project.getCurrentProject();
                 currentProjectId = project.id;
                 document.getElementById('project-label').innerText = "PROJECT: " + project.name.toUpperCase();
-            } catch (error) { console.error("Initialisatie fout:", error); }
+            } catch (error) { console.error("API Error:", error); }
         }
 
         document.getElementById('btn-load-sets').onclick = async () => {
-            if (!accessToken) {
-                accessToken = await API.extension.requestPermission("accesstoken");
-            }
-            if (accessToken && accessToken !== "pending") {
-                loadClashSets();
-            }
+            if (!accessToken) accessToken = await API.extension.requestPermission("accesstoken");
+            if (accessToken === "pending") return;
+            loadClashSets();
         };
 
         async function loadClashSets() {
-            const list = document.getElementById('clash-sets-list');
-            list.innerHTML = "Ophalen...";
-            try {
-                const response = await fetch(`${API_BASE_URL}/clashsets?projectId=${currentProjectId}`, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-                const sets = await response.json();
-                list.innerHTML = sets.map(s => `
-                    <div class="clash-card" onclick="openClashSet('${s.id}')">
-                        <strong>${s.name}</strong><br>
-                        <small>${s.count} items gevonden</small>
-                    </div>`).join('');
-            } catch (err) { list.innerHTML = "Fout bij laden."; }
+            const response = await fetch(`${API_BASE_URL}/clashsets?projectId=${currentProjectId}`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            const sets = await response.json();
+            document.getElementById('clash-sets-list').innerHTML = sets.map(s => `
+                <div class="clash-card" onclick="openClashSet('${s.id}')">
+                    <strong>${s.name}</strong><br><small>${s.count} items</small>
+                </div>`).join('');
         }
 
         async function openClashSet(clashId) {
             document.getElementById('set-selection-area').classList.add('hidden');
             document.getElementById('detail-area').classList.remove('hidden');
-            const list = document.getElementById('clash-items-list');
-            list.innerHTML = "Items inladen...";
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-                activeClashItems = await response.json();
-                
-                buildProductFilter();
-                renderFilteredItems();
-            } catch (err) { list.innerHTML = "Fout bij ophalen."; }
-        }
-
-        function buildProductFilter() {
+            const response = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            activeClashItems = await response.json();
+            
             const dropdown = document.getElementById('product-dropdown');
             const products = new Set();
             activeClashItems.forEach(i => {
@@ -126,24 +98,23 @@
             });
             dropdown.innerHTML = '<option value="ALL">-- Toon alle clashes --</option>' + 
                 Array.from(products).sort().map(p => `<option value="${p}">${p}</option>`).join('');
+
+            renderFilteredItems();
         }
 
         function renderFilteredItems() {
             const filterValue = document.getElementById('product-dropdown').value;
-            const list = document.getElementById('clash-items-list');
-            
             const filtered = activeClashItems.filter(i => {
                 if (filterValue === "ALL") return true;
                 return (i.elementName1 && i.elementName1.includes(filterValue)) || 
                        (i.elementName2 && i.elementName2.includes(filterValue));
             });
 
-            list.innerHTML = filtered.slice(0, 50).map(i => `
+            document.getElementById('clash-items-list').innerHTML = filtered.slice(0, 50).map(i => `
                 <div class="clash-item" id="item-${i.id}" onclick="focusClash('${i.id}')">
                     <span class="product-title">${i.label}</span>
                     <div class="product-meta">
-                        <b>A:</b> ${i.elementName1}<br>
-                        <b>B:</b> ${i.elementName2}
+                        <b>A:</b> ${i.elementName1}<br><b>B:</b> ${i.elementName2}
                     </div>
                 </div>`).join('');
         }
@@ -156,32 +127,29 @@
             document.getElementById(`item-${clashItemId}`).classList.add('active');
 
             try {
-                // Gebruik de juiste object-structuur [cite: 2701, 2702]
+                // STAP 1: Selectie (Bewezen werkend in logs)
                 const sel = [
                     { modelId: item.sourceId1.versionId, objectIds: [item.sourceId1.sourceId] },
                     { modelId: item.sourceId2.versionId, objectIds: [item.sourceId2.sourceId] }
                 ];
-
-                // 1. Voer alleen de selectie uit (werkt bewezen in v2.6 logs)
                 await API.viewer.setSelection(sel);
 
-                // 2. Camera focus op basis van coördinaten uit jouw log (meters) 
+                // STAP 2: Camera (Herschreven om crashes te voorkomen)
                 if (item.center) {
-                    // API data is mm, we zetten om naar meters (* 0.001) 
-                    const factor = 0.001; 
-                    const targetX = item.center.x * factor;
-                    const targetY = item.center.y * factor;
-                    const targetZ = item.center.z * factor;
+                    const factor = 0.001; // Schaling naar meters
+                    const tx = item.center.x * factor;
+                    const ty = item.center.y * factor;
+                    const tz = item.center.z * factor;
 
-                    // Gebruik het volledige camera object 
+                    // We gebruiken de setCamera functie die we in de HAR log zagen
                     await API.viewer.setCamera({
-                        lookAt: { x: targetX, y: targetY, z: targetZ },
-                        position: { x: targetX + 1.2, y: targetY + 1.2, z: targetZ + 1.2 },
+                        lookAt: { x: tx, y: ty, z: tz },
+                        position: { x: tx + 0.8, y: ty + 0.8, z: tz + 0.8 },
                         projectionType: "perspective"
                     });
                 }
             } catch (e) { 
-                console.error("Camera/Selectie fout:", e); 
+                console.error("Camera fout:", e); 
             }
         }
 
