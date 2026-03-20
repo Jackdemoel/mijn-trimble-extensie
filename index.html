@@ -1,44 +1,31 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v3.5</title>
+    <title>BCF Clash Helper v3.7</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; background: #fff; color: #333; }
-        .header { background: #333; padding: 10px 15px; color: white; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0078d4; }
-        .header h3 { margin: 0; font-size: 14px; text-transform: uppercase; }
+        .header { background: #333; padding: 10px 15px; color: white; border-bottom: 2px solid #0078d4; display: flex; justify-content: space-between; align-items: center; }
         .container { padding: 15px; }
         button { background: #0078d4; color: white; border: none; padding: 10px; border-radius: 2px; cursor: pointer; font-weight: 600; width: 100%; margin-bottom: 10px; }
-        .clash-card { border: 1px solid #ddd; padding: 12px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #444; background: #fafafa; }
-        .filter-box { background: #f1f1f1; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; }
-        .clash-item { border-bottom: 1px solid #eee; padding: 12px 8px; cursor: pointer; border-left: 4px solid transparent; }
-        .clash-item:hover { background-color: #f0f7ff; }
-        .clash-item.active { border-left-color: #0078d4; background-color: #e1f0ff; }
-        .product-title { display: block; font-weight: bold; font-size: 13px; color: #0078d4; }
-        .product-meta { font-size: 11px; color: #555; line-height: 1.4; margin-top: 4px; }
+        .clash-card { border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #444; }
+        .clash-item { border-bottom: 1px solid #eee; padding: 10px 5px; cursor: pointer; border-left: 3px solid transparent; }
+        .clash-item.active { border-left-color: #0078d4; background-color: #f0f7ff; }
         .hidden { display: none; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
-    <div class="header">
-        <h3>BCF CLASH HELPER</h3>
-        <span style="font-size: 10px;">v3.5</span>
-    </div>
-
+    <div class="header"><h3>BCF HELPER</h3><span>v3.7</span></div>
     <div class="container">
-        <div id="project-label" style="font-size: 11px; margin-bottom: 12px; font-weight: bold; color: #666;">VERBINDEN...</div>
+        <div id="project-label" style="font-size: 11px; margin-bottom: 10px;">Initialiseren...</div>
         
         <div id="set-selection-area">
-            <button id="btn-load-sets">LADEN: PROJECT CLASHSETS</button>
+            <button id="btn-load-sets">LADEN CLASHSETS</button>
             <div id="clash-sets-list"></div>
         </div>
 
         <div id="detail-area" class="hidden">
-            <button id="btn-back" style="background:#666; width: auto; padding: 5px 15px;">⬅ OVERZICHT</button>
-            <div class="filter-box">
-                <label style="font-size: 11px; font-weight: bold;">PRODUCT FILTER:</label>
-                <select id="product-dropdown" style="width:100%; padding:8px; margin-top:5px; border:1px solid #ccc;"></select>
-            </div>
+            <button onclick="location.reload()" style="background:#666;">⬅ HERLADEN</button>
             <div id="clash-items-list"></div>
         </div>
     </div>
@@ -52,78 +39,55 @@
 
         async function init() {
             try {
-                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {});
-                const project = await API.project.getCurrentProject(); [cite: 2295]
+                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
+                    // Log alle events van de viewer om te zien wat er binnenkomt
+                    if (event.includes("Selection")) console.log("DEBUG Viewer Event:", event, data);
+                });
+                const project = await API.project.getCurrentProject();
                 currentProjectId = project.id;
-                document.getElementById('project-label').innerText = "PROJECT: " + (project.name || "UNNAMED").toUpperCase();
-            } catch (error) { console.error("API Error:", error); }
+                document.getElementById('project-label').innerText = "Project: " + (project.name || "Geladen");
+            } catch (error) { console.error("Init Error:", error); }
         }
 
         document.getElementById('btn-load-sets').onclick = async () => {
-            if (!accessToken) accessToken = await API.extension.requestPermission("accesstoken"); [cite: 2301]
+            if (!accessToken) accessToken = await API.extension.requestPermission("accesstoken");
             loadClashSets();
         };
 
         async function loadClashSets() {
-            const list = document.getElementById('clash-sets-list');
-            list.innerHTML = "Ophalen...";
-            try {
-                const response = await fetch(`${API_BASE_URL}/clashsets?projectId=${currentProjectId}`, { [cite: 2307]
-                    headers: { 'Authorization': `Bearer ${accessToken}` } [cite: 2309]
-                });
-                const sets = await response.json();
-                list.innerHTML = sets.map(s => `
-                    <div class="clash-card" onclick="openClashSet('${s.id}')">
-                        <strong>${s.name || 'Set'}</strong><br>
-                        <small>${s.count || 0} clashes</small>
-                    </div>`).join('');
-            } catch (err) { list.innerHTML = "Fout bij laden."; }
+            const response = await fetch(`${API_BASE_URL}/clashsets?projectId=${currentProjectId}`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            const sets = await response.json();
+            document.getElementById('clash-sets-list').innerHTML = sets.map(s => `
+                <div class="clash-card" onclick="openClashSet('${s.id}')"><strong>${s.name}</strong></div>
+            `).join('');
         }
 
         async function openClashSet(clashId) {
             document.getElementById('set-selection-area').classList.add('hidden');
             document.getElementById('detail-area').classList.remove('hidden');
-            const list = document.getElementById('clash-items-list');
-            list.innerHTML = "Clashes inladen...";
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, { [cite: 2324]
-                    headers: { 'Authorization': `Bearer ${accessToken}` } [cite: 2326]
-                });
-                activeClashItems = await response.json();
-                
-                buildProductFilter();
-                renderFilteredItems();
-            } catch (err) { list.innerHTML = "Fout bij ophalen."; }
-        }
-
-        function buildProductFilter() {
-            const dropdown = document.getElementById('product-dropdown');
-            const products = new Set();
-            activeClashItems.forEach(i => {
-                if (i.elementName1) products.add(i.elementName1.split(':')[0]);
-                if (i.elementName2) products.add(i.elementName2.split(':')[0]);
+            const response = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
             });
-            dropdown.innerHTML = '<option value="ALL">-- Toon alle clashes --</option>' + 
-                Array.from(products).sort().map(p => `<option value="${p}">${p}</option>`).join('');
+            activeClashItems = await response.json();
+
+            // --- AUTO DEBUG LOG ---
+            if (activeClashItems.length > 0) {
+                console.log("!!! TECHNISCHE DATA EERSTE CLASH !!!");
+                console.log("Hash/ID Structuur:", JSON.stringify(activeClashItems[0], null, 2));
+                console.log("Aanroepbaar via console als: activeClashItems[0]");
+            }
+
+            renderFilteredItems();
         }
 
         function renderFilteredItems() {
-            const filterValue = document.getElementById('product-dropdown').value;
-            const list = document.getElementById('clash-items-list');
-            const filtered = activeClashItems.filter(i => {
-                if (filterValue === "ALL") return true;
-                return (i.elementName1 || "").includes(filterValue) || (i.elementName2 || "").includes(filterValue);
-            });
-
-            list.innerHTML = filtered.slice(0, 50).map(i => `
+            document.getElementById('clash-items-list').innerHTML = activeClashItems.slice(0, 10).map(i => `
                 <div class="clash-item" id="item-${i.id}" onclick="focusClash('${i.id}')">
-                    <span class="product-title">${i.label || 'Clash'}</span>
-                    <div class="product-meta">
-                        <b>A:</b> ${i.elementName1 || '?'}<br>
-                        <b>B:</b> ${i.elementName2 || '?'}
-                    </div>
-                </div>`).join('');
+                    <strong>${i.label}</strong><br><small>A: ${i.elementName1}</small>
+                </div>
+            `).join('');
         }
 
         async function focusClash(clashItemId) {
@@ -134,36 +98,27 @@
             document.getElementById(`item-${clashItemId}`).classList.add('active');
 
             try {
-                // OPTIE 1: De 'id:' prefix om ambiguïteit op te lossen 
+                // We gebruiken hier de prefix logica uit de Model API spec [cite: 166, 172]
                 const sel = [
-                    { modelId: item.sourceId1.versionId, objectIds: [`id:${item.sourceId1.sourceId}`] },
-                    { modelId: item.sourceId2.versionId, objectIds: [`id:${item.sourceId2.sourceId}`] }
+                    { modelId: item.sourceId1.versionId, objectIds: ["id:" + item.sourceId1.sourceId] },
+                    { modelId: item.sourceId2.versionId, objectIds: ["id:" + item.sourceId2.sourceId] }
                 ];
 
-                // Selecteer de objecten
-                await API.viewer.setSelection(sel); [cite: 2355, 3076]
+                console.log("SELECTIE POGING MET PREFIX:", JSON.stringify(sel));
+                await API.viewer.setSelection(sel);
 
-                // Camera focus: Omschakelen naar meters zoals in de HAR log 
                 if (item.center) {
-                    const factor = 0.001; 
-                    const tx = item.center.x * factor;
-                    const ty = item.center.y * factor;
-                    const tz = item.center.z * factor;
-
+                    const factor = 0.001; // Schaling naar meters conform HAR logs [cite: 732, 849]
+                    const target = { x: item.center.x * factor, y: item.center.y * factor, z: item.center.z * factor };
+                    
                     await API.viewer.setCamera({
-                        lookAt: { x: tx, y: ty, z: tz },
-                        position: { x: tx + 1.2, y: ty + 1.2, z: tz + 1.2 },
+                        lookAt: target,
+                        position: { x: target.x + 1.2, y: target.y + 1.2, z: target.z + 1.2 },
                         projectionType: "perspective"
-                    }); [cite: 3076, 3581]
+                    });
                 }
-            } catch (e) { console.error("Viewer error:", e); }
+            } catch (e) { console.error("Viewer actie mislukt:", e); }
         }
-
-        document.getElementById('btn-back').onclick = () => {
-            document.getElementById('set-selection-area').classList.remove('hidden');
-            document.getElementById('detail-area').classList.add('hidden');
-        };
-        document.getElementById('product-dropdown').onchange = renderFilteredItems;
 
         init();
     </script>
