@@ -1,22 +1,23 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v3.8</title>
+    <title>BCF Clash Helper v4.0</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; background: #fff; color: #333; }
         .header { background: #333; padding: 10px 15px; color: white; border-bottom: 2px solid #0078d4; display: flex; justify-content: space-between; align-items: center; }
         .container { padding: 15px; }
         button { background: #0078d4; color: white; border: none; padding: 10px; border-radius: 2px; cursor: pointer; font-weight: 600; width: 100%; margin-bottom: 10px; }
-        .clash-card { border: 1px solid #ddd; padding: 12px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #444; background: #fafafa; }
+        .clash-card { border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #444; background: #fafafa; }
         .clash-item { border-bottom: 1px solid #eee; padding: 12px 8px; cursor: pointer; border-left: 3px solid transparent; }
-        .clash-item.active { border-left-color: #0078d4; background-color: #f0f7ff; }
-        .meta { font-size: 11px; color: #666; margin-top: 4px; }
+        .clash-item.active { border-left-color: #0078d4; background-color: #e1f0ff; }
+        .product-meta { font-size: 11px; color: #666; margin-top: 4px; }
         .hidden { display: none; }
+        #debug-box { font-size: 10px; color: #888; margin-top: 10px; font-family: monospace; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
-    <div class="header"><h3>BCF CLASH HELPER</h3><span>v3.8</span></div>
+    <div class="header"><h3>BCF CLASH HELPER</h3><span>v4.0</span></div>
     <div class="container">
         <div id="project-label" style="font-size: 11px; margin-bottom: 10px; font-weight: bold;">Initialiseren...</div>
         <div id="set-selection-area">
@@ -26,6 +27,7 @@
         <div id="detail-area" class="hidden">
             <button onclick="location.reload()" style="background:#666;">⬅ TERUG</button>
             <div id="clash-items-list"></div>
+            <div id="debug-box"></div>
         </div>
     </div>
 
@@ -35,13 +37,19 @@
         let currentProjectId = null;
         let activeClashItems = [];
         const API_BASE_URL = "https://app21.connect.trimble.com/tc/api/2.0";
+        const MODEL_API_URL = "https://model-api21.connect.trimble.com/v1";
 
         async function init() {
             try {
-                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {});
+                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
+                    if (event === "viewer.onSelectionChanged") {
+                        const count = data.length > 0 ? data[0].objectRuntimeIds.length : 0;
+                        document.getElementById('debug-box').innerText = `Laatste selectie: ${count} objecten`;
+                    }
+                });
                 const project = await API.project.getCurrentProject();
                 currentProjectId = project.id;
-                document.getElementById('project-label').innerText = "Project: " + (project.name || "Geladen");
+                document.getElementById('project-label').innerText = "Project: " + project.name;
             } catch (error) { console.error("Init Error:", error); }
         }
 
@@ -73,9 +81,27 @@
         function renderItems() {
             document.getElementById('clash-items-list').innerHTML = activeClashItems.slice(0, 20).map(i => `
                 <div class="clash-item" id="item-${i.id}" onclick="focusClash('${i.id}')">
-                    <strong>${i.label}</strong><div class="meta">A: ${i.elementName1}</div>
+                    <strong>${i.label}</strong>
+                    <div class="product-meta">A: ${i.elementName1}</div>
                 </div>
             `).join('');
+        }
+
+        /**
+         * Mapping functie: Zoekt de interne 'idx' op bij een GUID
+         */
+        async function getInternalId(modelId, sourceId) {
+            try {
+                const url = `${MODEL_API_URL}/models/${modelId}/entities/${sourceId}?fields=idx`;
+                const resp = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const data = await resp.json();
+                return data.idx;
+            } catch (e) {
+                console.error("Mapping error:", e);
+                return null;
+            }
         }
 
         async function focusClash(clashItemId) {
@@ -86,32 +112,33 @@
             document.getElementById(`item-${clashItemId}`).classList.add('active');
 
             try {
-                // BEWEZEN SELECTIE LOGICA
-                const sel = [
-                    { modelId: item.sourceId1.versionId, objectIds: ["id:" + item.sourceId1.sourceId] },
-                    { modelId: item.sourceId2.versionId, objectIds: ["id:" + item.sourceId2.sourceId] }
-                ];
+                // STAP 1: Haal voor beide objecten de interne 'idx' op
+                const idx1 = await getInternalId(item.sourceId1.versionId, item.sourceId1.sourceId);
+                const idx2 = await getInternalId(item.sourceId2.versionId, item.sourceId2.sourceId);
+
+                // STAP 2: Selecteer specifiek op basis van 'idx:' prefix
+                const sel = [];
+                if (idx1 !== null) sel.push({ modelId: item.sourceId1.versionId, objectIds: ["idx:" + idx1] });
+                if (idx2 !== null) sel.push({ modelId: item.sourceId2.versionId, objectIds: ["idx:" + idx2] });
+
+                console.log("Poging tot interne selectie:", sel);
                 await API.viewer.setSelection(sel);
 
-                // CAMERA LOGICA MET VALSTRIK-BEVEILIGING
-                // Sommige clash-data plaatst center direct in het item, anderen in een boundingBox object
+                // STAP 3: Camera focus (meters)
                 const center = item.center || (item.boundingBox && item.boundingBox.center);
-                
                 if (center) {
-                    const factor = 0.001; // mm naar meters conform HAR
+                    const factor = 0.001; 
                     const tx = center.x * factor;
                     const ty = center.y * factor;
                     const tz = center.z * factor;
 
                     await API.viewer.setCamera({
                         lookAt: { x: tx, y: ty, z: tz },
-                        position: { x: tx + 1.0, y: ty + 1.0, z: tz + 1.0 },
+                        position: { x: tx + 0.8, y: ty + 0.8, z: tz + 0.8 },
                         projectionType: "perspective"
                     });
-                } else {
-                    console.warn("Geen center coördinaten gevonden voor dit item.");
                 }
-            } catch (e) { console.error("Viewer actie mislukt:", e); }
+            } catch (e) { console.error("Viewer actie faalde:", e); }
         }
 
         init();
