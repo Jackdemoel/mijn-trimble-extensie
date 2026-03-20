@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v3.2</title>
+    <title>BCF Clash Helper v3.3</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; background: #fff; color: #333; }
         .header { background: #333; padding: 10px 15px; color: white; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0078d4; }
@@ -22,14 +22,14 @@
 <body>
     <div class="header">
         <h3>BCF CLASH HELPER</h3>
-        <span style="font-size: 10px;">v3.2</span>
+        <span style="font-size: 10px;">v3.3</span>
     </div>
 
     <div class="container">
         <div id="project-label" style="font-size: 11px; margin-bottom: 12px; font-weight: bold; color: #666;">VERBINDEN...</div>
         
         <div id="set-selection-area">
-            <button id="btn-load-sets">HAAL PROJECT CLASHSETS</button>
+            <button id="btn-load-sets">LADEN: PROJECT CLASHSETS</button>
             <div id="clash-sets-list"></div>
         </div>
 
@@ -37,10 +37,8 @@
             <button id="btn-back" style="background:#666; width: auto; padding: 5px 15px;">⬅ OVERZICHT</button>
             
             <div class="filter-box">
-                <label style="font-size: 11px; font-weight: bold;">FILTER OP PRODUCT:</label>
-                <select id="product-dropdown" style="width:100%; padding:8px; margin-top:5px;">
-                    <option value="ALL">-- Toon alle clashes --</option>
-                </select>
+                <label style="font-size: 11px; font-weight: bold;">PRODUCT FILTER:</label>
+                <select id="product-dropdown" style="width:100%; padding:8px; margin-top:5px; border:1px solid #ccc;"></select>
             </div>
 
             <div id="clash-items-list"></div>
@@ -56,9 +54,7 @@
 
         async function init() {
             try {
-                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
-                    // Ontvangt events zoals onSelectionChanged
-                });
+                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {});
                 const project = await API.project.getCurrentProject();
                 currentProjectId = project.id;
                 document.getElementById('project-label').innerText = "PROJECT: " + project.name.toUpperCase();
@@ -66,55 +62,74 @@
         }
 
         document.getElementById('btn-load-sets').onclick = async () => {
-            if (!accessToken) accessToken = await API.extension.requestPermission("accesstoken");
-            if (accessToken === "pending") return;
-            loadClashSets();
+            if (!accessToken) {
+                accessToken = await API.extension.requestPermission("accesstoken");
+            }
+            if (accessToken && accessToken !== "pending") {
+                loadClashSets();
+            }
         };
 
         async function loadClashSets() {
-            const response = await fetch(`${API_BASE_URL}/clashsets?projectId=${currentProjectId}`, {
-                headers: { 'Authorization': `Bearer ${accessToken}` }
-            });
-            const sets = await response.json();
-            document.getElementById('clash-sets-list').innerHTML = sets.map(s => `
-                <div class="clash-card" onclick="openClashSet('${s.id}')">
-                    <strong>${s.name}</strong><br><small>${s.count} items</small>
-                </div>`).join('');
+            const list = document.getElementById('clash-sets-list');
+            list.innerHTML = "Laden...";
+            try {
+                const response = await fetch(`${API_BASE_URL}/clashsets?projectId=${currentProjectId}`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const sets = await response.json();
+                list.innerHTML = sets.map(s => `
+                    <div class="clash-card" onclick="openClashSet('${s.id}')">
+                        <strong>${s.name}</strong><br><small>${s.count} items</small>
+                    </div>`).join('');
+            } catch (err) { list.innerHTML = "Fout bij laden."; }
         }
 
         async function openClashSet(clashId) {
             document.getElementById('set-selection-area').classList.add('hidden');
             document.getElementById('detail-area').classList.remove('hidden');
-            const response = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, {
-                headers: { 'Authorization': `Bearer ${accessToken}` }
-            });
-            activeClashItems = await response.json();
-            
+            const list = document.getElementById('clash-items-list');
+            list.innerHTML = "Items inladen...";
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                activeClashItems = await response.json();
+                
+                buildProductFilter();
+                renderFilteredItems();
+            } catch (err) { list.innerHTML = "Fout bij ophalen."; }
+        }
+
+        function buildProductFilter() {
             const dropdown = document.getElementById('product-dropdown');
             const products = new Set();
             activeClashItems.forEach(i => {
+                // We pakken het eerste deel van de naam voor de filter (bijv. "Pipe Types")
                 if (i.elementName1) products.add(i.elementName1.split(':')[0]);
                 if (i.elementName2) products.add(i.elementName2.split(':')[0]);
             });
             dropdown.innerHTML = '<option value="ALL">-- Toon alle clashes --</option>' + 
                 Array.from(products).sort().map(p => `<option value="${p}">${p}</option>`).join('');
-
-            renderFilteredItems();
         }
 
         function renderFilteredItems() {
             const filterValue = document.getElementById('product-dropdown').value;
+            const list = document.getElementById('clash-items-list');
+            
             const filtered = activeClashItems.filter(i => {
                 if (filterValue === "ALL") return true;
                 return (i.elementName1 && i.elementName1.includes(filterValue)) || 
                        (i.elementName2 && i.elementName2.includes(filterValue));
             });
 
-            document.getElementById('clash-items-list').innerHTML = filtered.slice(0, 50).map(i => `
+            list.innerHTML = filtered.slice(0, 50).map(i => `
                 <div class="clash-item" id="item-${i.id}" onclick="focusClash('${i.id}')">
                     <span class="product-title">${i.label}</span>
                     <div class="product-meta">
-                        <b>A:</b> ${i.elementName1}<br><b>B:</b> ${i.elementName2}
+                        <b>A:</b> ${i.elementName1 || 'Onbekend'}<br>
+                        <b>B:</b> ${i.elementName2 || 'Onbekend'}
                     </div>
                 </div>`).join('');
         }
@@ -127,30 +142,28 @@
             document.getElementById(`item-${clashItemId}`).classList.add('active');
 
             try {
-                // STAP 1: Selectie (Bewezen werkend in logs)
-                const sel = [
-                    { modelId: item.sourceId1.versionId, objectIds: [item.sourceId1.sourceId] },
-                    { modelId: item.sourceId2.versionId, objectIds: [item.sourceId2.sourceId] }
-                ];
+                // Correcte ModelObjectIds structuur bouwen met GUIDs (Source IDs) [cite: 1982, 2387, 2702]
+                const sel = [];
+                if (item.sourceId1) sel.push({ modelId: item.sourceId1.versionId, objectIds: [item.sourceId1.sourceId] });
+                if (item.sourceId2) sel.push({ modelId: item.sourceId2.versionId, objectIds: [item.sourceId2.sourceId] });
+
+                // De viewer probeert dit nu te mappen naar de Runtime IDs uit jouw logs [cite: 2386]
                 await API.viewer.setSelection(sel);
 
-                // STAP 2: Camera (Herschreven om crashes te voorkomen)
                 if (item.center) {
-                    const factor = 0.001; // Schaling naar meters
+                    const factor = 0.001; // Schaling mm -> m [cite: 1545, 1721, 1723]
                     const tx = item.center.x * factor;
                     const ty = item.center.y * factor;
                     const tz = item.center.z * factor;
 
-                    // We gebruiken de setCamera functie die we in de HAR log zagen
+                    // Camera positioneren zoals de HAR log suggereerde [cite: 2914]
                     await API.viewer.setCamera({
                         lookAt: { x: tx, y: ty, z: tz },
-                        position: { x: tx + 0.8, y: ty + 0.8, z: tz + 0.8 },
+                        position: { x: tx + 0.5, y: ty + 0.5, z: tz + 0.5 },
                         projectionType: "perspective"
                     });
                 }
-            } catch (e) { 
-                console.error("Camera fout:", e); 
-            }
+            } catch (e) { console.error("Viewer error:", e); }
         }
 
         document.getElementById('btn-back').onclick = () => {
