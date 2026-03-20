@@ -1,31 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v3.7</title>
+    <title>BCF Clash Helper v3.8</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; background: #fff; color: #333; }
         .header { background: #333; padding: 10px 15px; color: white; border-bottom: 2px solid #0078d4; display: flex; justify-content: space-between; align-items: center; }
         .container { padding: 15px; }
         button { background: #0078d4; color: white; border: none; padding: 10px; border-radius: 2px; cursor: pointer; font-weight: 600; width: 100%; margin-bottom: 10px; }
-        .clash-card { border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #444; }
-        .clash-item { border-bottom: 1px solid #eee; padding: 10px 5px; cursor: pointer; border-left: 3px solid transparent; }
+        .clash-card { border: 1px solid #ddd; padding: 12px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #444; background: #fafafa; }
+        .clash-item { border-bottom: 1px solid #eee; padding: 12px 8px; cursor: pointer; border-left: 3px solid transparent; }
         .clash-item.active { border-left-color: #0078d4; background-color: #f0f7ff; }
+        .meta { font-size: 11px; color: #666; margin-top: 4px; }
         .hidden { display: none; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
-    <div class="header"><h3>BCF HELPER</h3><span>v3.7</span></div>
+    <div class="header"><h3>BCF CLASH HELPER</h3><span>v3.8</span></div>
     <div class="container">
-        <div id="project-label" style="font-size: 11px; margin-bottom: 10px;">Initialiseren...</div>
-        
+        <div id="project-label" style="font-size: 11px; margin-bottom: 10px; font-weight: bold;">Initialiseren...</div>
         <div id="set-selection-area">
             <button id="btn-load-sets">LADEN CLASHSETS</button>
             <div id="clash-sets-list"></div>
         </div>
-
         <div id="detail-area" class="hidden">
-            <button onclick="location.reload()" style="background:#666;">⬅ HERLADEN</button>
+            <button onclick="location.reload()" style="background:#666;">⬅ TERUG</button>
             <div id="clash-items-list"></div>
         </div>
     </div>
@@ -39,10 +38,7 @@
 
         async function init() {
             try {
-                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
-                    // Log alle events van de viewer om te zien wat er binnenkomt
-                    if (event.includes("Selection")) console.log("DEBUG Viewer Event:", event, data);
-                });
+                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {});
                 const project = await API.project.getCurrentProject();
                 currentProjectId = project.id;
                 document.getElementById('project-label').innerText = "Project: " + (project.name || "Geladen");
@@ -55,10 +51,10 @@
         };
 
         async function loadClashSets() {
-            const response = await fetch(`${API_BASE_URL}/clashsets?projectId=${currentProjectId}`, {
+            const resp = await fetch(`${API_BASE_URL}/clashsets?projectId=${currentProjectId}`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
-            const sets = await response.json();
+            const sets = await resp.json();
             document.getElementById('clash-sets-list').innerHTML = sets.map(s => `
                 <div class="clash-card" onclick="openClashSet('${s.id}')"><strong>${s.name}</strong></div>
             `).join('');
@@ -67,25 +63,17 @@
         async function openClashSet(clashId) {
             document.getElementById('set-selection-area').classList.add('hidden');
             document.getElementById('detail-area').classList.remove('hidden');
-            const response = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, {
+            const resp = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
-            activeClashItems = await response.json();
-
-            // --- AUTO DEBUG LOG ---
-            if (activeClashItems.length > 0) {
-                console.log("!!! TECHNISCHE DATA EERSTE CLASH !!!");
-                console.log("Hash/ID Structuur:", JSON.stringify(activeClashItems[0], null, 2));
-                console.log("Aanroepbaar via console als: activeClashItems[0]");
-            }
-
-            renderFilteredItems();
+            activeClashItems = await resp.json();
+            renderItems();
         }
 
-        function renderFilteredItems() {
-            document.getElementById('clash-items-list').innerHTML = activeClashItems.slice(0, 10).map(i => `
+        function renderItems() {
+            document.getElementById('clash-items-list').innerHTML = activeClashItems.slice(0, 20).map(i => `
                 <div class="clash-item" id="item-${i.id}" onclick="focusClash('${i.id}')">
-                    <strong>${i.label}</strong><br><small>A: ${i.elementName1}</small>
+                    <strong>${i.label}</strong><div class="meta">A: ${i.elementName1}</div>
                 </div>
             `).join('');
         }
@@ -98,24 +86,30 @@
             document.getElementById(`item-${clashItemId}`).classList.add('active');
 
             try {
-                // We gebruiken hier de prefix logica uit de Model API spec [cite: 166, 172]
+                // BEWEZEN SELECTIE LOGICA
                 const sel = [
                     { modelId: item.sourceId1.versionId, objectIds: ["id:" + item.sourceId1.sourceId] },
                     { modelId: item.sourceId2.versionId, objectIds: ["id:" + item.sourceId2.sourceId] }
                 ];
-
-                console.log("SELECTIE POGING MET PREFIX:", JSON.stringify(sel));
                 await API.viewer.setSelection(sel);
 
-                if (item.center) {
-                    const factor = 0.001; // Schaling naar meters conform HAR logs [cite: 732, 849]
-                    const target = { x: item.center.x * factor, y: item.center.y * factor, z: item.center.z * factor };
-                    
+                // CAMERA LOGICA MET VALSTRIK-BEVEILIGING
+                // Sommige clash-data plaatst center direct in het item, anderen in een boundingBox object
+                const center = item.center || (item.boundingBox && item.boundingBox.center);
+                
+                if (center) {
+                    const factor = 0.001; // mm naar meters conform HAR
+                    const tx = center.x * factor;
+                    const ty = center.y * factor;
+                    const tz = center.z * factor;
+
                     await API.viewer.setCamera({
-                        lookAt: target,
-                        position: { x: target.x + 1.2, y: target.y + 1.2, z: target.z + 1.2 },
+                        lookAt: { x: tx, y: ty, z: tz },
+                        position: { x: tx + 1.0, y: ty + 1.0, z: tz + 1.0 },
                         projectionType: "perspective"
                     });
+                } else {
+                    console.warn("Geen center coördinaten gevonden voor dit item.");
                 }
             } catch (e) { console.error("Viewer actie mislukt:", e); }
         }
