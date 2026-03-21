@@ -1,57 +1,64 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Clash Analyzer v5.1</title>
+    <title>Clash Power Analyzer v5.2</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f8f9fa; color: #202124; }
-        .header { background: #333; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #0078d4; }
-        .container { padding: 15px; max-width: 500px; }
-        .filter-section { background: white; padding: 15px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); margin-bottom: 15px; }
-        label { display: block; font-size: 11px; font-weight: bold; color: #5f6368; margin-bottom: 5px; text-transform: uppercase; }
-        select { width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #dadce0; border-radius: 4px; background: #fff; }
-        .stats-bar { display: flex; gap: 10px; margin-bottom: 15px; }
-        .stat-card { flex: 1; background: #e8f0fe; padding: 10px; border-radius: 4px; text-align: center; }
-        .stat-val { display: block; font-size: 18px; font-weight: bold; color: #1967d2; }
-        .clash-card { background: white; border: 1px solid #dadce0; border-radius: 4px; margin-bottom: 8px; transition: 0.2s; }
-        .clash-card:hover { border-color: #1a73e8; box-shadow: 0 1px 6px rgba(32,33,36,0.28); }
-        .clash-header { padding: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-        .badge { background: #fce8e6; color: #d93025; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
-        button.primary { background: #1a73e8; color: white; border: none; padding: 12px; border-radius: 4px; width: 100%; cursor: pointer; font-weight: bold; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; color: #1c1e21; }
+        .header { background: #0078d4; color: white; padding: 10px 15px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #005a9e; }
+        .sidebar { padding: 15px; }
+        .filter-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        label { display: block; font-size: 11px; font-weight: 700; color: #606770; margin-bottom: 5px; text-transform: uppercase; }
+        select { width: 100%; padding: 8px; margin-bottom: 12px; border: 1px solid #dddfe2; border-radius: 6px; }
+        
+        .active-filters { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; }
+        .filter-badge { background: #e7f3ff; color: #1877f2; padding: 4px 10px; border-radius: 15px; font-size: 11px; font-weight: 600; border: 1px solid #1877f2; }
+        
+        .object-card { background: white; border-radius: 8px; margin-bottom: 10px; border: 1px solid #dddfe2; overflow: hidden; }
+        .object-header { padding: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+        .object-header:hover { background: #f5f6f7; }
+        .clash-count { background: #fa3e3e; color: white; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; font-size: 11px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        
+        .details-area { background: #f9fafb; border-top: 1px solid #dddfe2; display: none; }
+        .clash-row { padding: 8px 15px; font-size: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; }
+        .clash-row:hover { color: #1877f2; background: #fff; }
+        
+        .btn-main { background: #1877f2; color: white; border: none; padding: 10px; border-radius: 6px; width: 100%; cursor: pointer; font-weight: bold; }
         .hidden { display: none; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
-    <div class="header"><span>CLASH ANALYZER</span><small>v5.1</small></div>
-    <div class="container">
-        <div id="init-view">
-            <button class="primary" id="btn-connect">START DATA SCAN</button>
-            <div id="set-picker" class="hidden" style="margin-top:15px;">
-                <label>Kies een Clash Set</label>
-                <select id="select-set"></select>
-                <button class="primary" id="btn-analyze">ANALYSEER DATA</button>
+    <div class="header"><span>CLASH ANALYZER PRO</span><span>v5.2</span></div>
+    
+    <div class="sidebar">
+        <div id="init-screen">
+            <button class="btn-main" id="btn-start">HAAL CLASH DATA OP</button>
+            <div id="setup-controls" class="hidden" style="margin-top:15px;">
+                <label>Selecteer Clash Set</label>
+                <select id="set-select"></select>
+                <button class="btn-main" id="btn-run">ANALYSEER NU</button>
             </div>
         </div>
 
-        <div id="analysis-view" class="hidden">
-            <div class="filter-section">
-                <div class="stats-bar">
-                    <div class="stat-card"><span class="stat-val" id="count-total">0</span><small>Totaal</small></div>
-                    <div class="stat-card"><span class="stat-val" id="count-filtered">0</span><small>Gefilterd</small></div>
-                </div>
-                <label>Filter op Product/Type</label>
-                <select id="filter-product"><option value="all">Alle producten tonen</option></select>
+        <div id="dashboard" class="hidden">
+            <div class="filter-card">
+                <label>Actieve Filters</label>
+                <div id="badge-container" class="active-filters"></div>
+                
                 <label>Filter op Model</label>
-                <select id="filter-model"><option value="all">Alle modellen tonen</option></select>
+                <select id="f-model"><option value="all">Alle modellen</option></select>
+                
+                <label>Filter op Product/Element</label>
+                <select id="f-product"><option value="all">Alle producten</option></select>
             </div>
-            <div id="results-list"></div>
-            <button onclick="location.reload()" style="margin-top:20px; background:none; color:#5f6368; border:none; cursor:pointer;">⬅ Reset Filters</button>
+
+            <div id="results-container"></div>
         </div>
     </div>
 
     <script>
         var API, accessToken, project;
-        var allClashes = [];
+        var allData = [];
         var API_URL = "https://app21.connect.trimble.com/tc/api/2.0";
 
         async function init() {
@@ -59,84 +66,102 @@
             project = await API.project.getCurrentProject();
         }
 
-        document.getElementById('btn-connect').onclick = async () => {
+        document.getElementById('btn-start').onclick = async () => {
             accessToken = await API.extension.requestPermission("accesstoken");
-            await API.embed.setTokens({ accessToken: accessToken }); // Nodig voor 3D context
-            loadSets();
-        };
-
-        async function loadSets() {
+            await API.embed.setTokens({ accessToken: accessToken }); // Essentieel voor autorisatie viewer data
             var resp = await fetch(`${API_URL}/clashsets?projectId=${project.id}`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             var sets = await resp.json();
-            var sel = document.getElementById('select-set');
+            var sel = document.getElementById('set-select');
             sel.innerHTML = sets.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-            document.getElementById('set-picker').classList.remove('hidden');
-        }
+            document.getElementById('setup-controls').classList.remove('hidden');
+        };
 
-        document.getElementById('btn-analyze').onclick = async () => {
-            var setId = document.getElementById('select-set').value;
+        document.getElementById('btn-run').onclick = async () => {
+            var setId = document.getElementById('set-select').value;
             var resp = await fetch(`${API_URL}/clashsets/${setId}/items`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
-            allClashes = await resp.json();
-            buildFilters();
-            updateList();
-            document.getElementById('init-view').classList.add('hidden');
-            document.getElementById('analysis-view').classList.remove('hidden');
+            allData = await resp.json();
+            
+            fillDropdowns();
+            renderDashboard();
+            
+            document.getElementById('init-screen').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
         };
 
-        function buildFilters() {
-            var products = new Set();
-            var models = new Set();
-            
-            allClashes.forEach(c => {
+        function fillDropdowns() {
+            var models = new Set(), products = new Set();
+            allData.forEach(c => {
+                if (c.sourceId1.modelName) models.add(c.sourceId1.modelName);
                 if (c.elementName1) products.add(c.elementName1);
-                if (c.sourceId1 && c.sourceId1.modelName) models.add(c.sourceId1.modelName);
             });
-
-            var pSel = document.getElementById('filter-product');
-            [...products].sort().forEach(p => pSel.innerHTML += `<option value="${p}">${p}</option>`);
-
-            var mSel = document.getElementById('filter-model');
+            
+            var mSel = document.getElementById('f-model');
             [...models].sort().forEach(m => mSel.innerHTML += `<option value="${m}">${m}</option>`);
+            
+            var pSel = document.getElementById('f-product');
+            [...products].sort().forEach(p => pSel.innerHTML += `<option value="${p}">${p}</option>`);
         }
 
-        function updateList() {
-            var pFilter = document.getElementById('filter-product').value;
-            var mFilter = document.getElementById('filter-model').value;
-
-            var filtered = allClashes.filter(c => {
-                var pMatch = (pFilter === 'all' || c.elementName1 === pFilter);
-                var mMatch = (mFilter === 'all' || (c.sourceId1 && c.sourceId1.modelName === mFilter));
-                return pMatch && mMatch;
+        function renderDashboard() {
+            var mVal = document.getElementById('f-model').value;
+            var pVal = document.getElementById('f-product').value;
+            
+            // 1. Cumulatief Filteren
+            var filtered = allData.filter(c => {
+                var mMatch = (mVal === 'all' || c.sourceId1.modelName === mVal);
+                var pMatch = (pVal === 'all' || c.elementName1 === pVal);
+                return mMatch && pMatch;
             });
 
-            document.getElementById('count-total').innerText = allClashes.length;
-            document.getElementById('count-filtered').innerText = filtered.length;
+            // 2. Badges bijwerken
+            var bContainer = document.getElementById('badge-container');
+            bContainer.innerHTML = "";
+            if (mVal !== 'all') bContainer.innerHTML += `<span class="filter-badge">${mVal}</span>`;
+            if (pVal !== 'all') bContainer.innerHTML += `<span class="filter-badge">${pVal}</span>`;
 
-            document.getElementById('results-list').innerHTML = filtered.slice(0, 50).map(c => `
-                <div class="clash-card" onclick="zoomTo(${c.center.x}, ${c.center.y}, ${c.center.z})">
-                    <div class="clash-header">
-                        <div>
-                            <strong>${c.label}</strong><br>
-                            <small>${c.elementName1 || 'Onbekend'}</small>
+            // 3. Aggregeren (Groepeer op uniek element) 
+            var groups = {};
+            filtered.forEach(c => {
+                var key = c.sourceId1.sourceId; // Gebruik GUID als unieke sleutel
+                if (!groups[key]) groups[key] = { name: c.elementName1, model: c.sourceId1.modelName, items: [] };
+                groups[key].items.push(c);
+            });
+
+            var sortedGroups = Object.values(groups).sort((a, b) => b.items.length - a.items.length);
+
+            document.getElementById('results-container').innerHTML = sortedGroups.map(g => `
+                <div class="object-card">
+                    <div class="object-header" onclick="var d = this.nextElementSibling; d.style.display = d.style.display === 'block' ? 'none' : 'block'">
+                        <div style="max-width: 80%;">
+                            <strong style="font-size:13px;">${g.name}</strong><br>
+                            <small style="color:#606770;">${g.model}</small>
                         </div>
-                        <span class="badge">FOCUS</span>
+                        <span class="clash-count">${g.items.length}</span>
+                    </div>
+                    <div class="details-area">
+                        ${g.items.map(i => `
+                            <div class="clash-row" onclick="zoom('${i.center.x}','${i.center.y}','${i.center.z}')">
+                                <span>${i.label}</span>
+                                <span style="font-weight:bold;">ZOOM 🔍</span>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
             `).join('');
         }
 
-        document.getElementById('filter-product').onchange = updateList;
-        document.getElementById('filter-model').onchange = updateList;
+        document.getElementById('f-model').onchange = renderDashboard;
+        document.getElementById('f-product').onchange = renderDashboard;
 
-        async function zoomTo(x, y, z) {
+        async function zoom(x, y, z) {
             var f = 0.001; // mm naar m
             await API.viewer.setCamera({
                 lookAt: { x: x*f, y: y*f, z: z*f },
-                position: { x: (x*f)+1.5, y: (y*f)+1.5, z: (z*f)+1.5 },
+                position: { x: (x*f)+1.2, y: (y*f)+1.2, z: (z*f)+1.2 },
                 projectionType: "perspective"
             });
         }
