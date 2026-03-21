@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v4.2</title>
+    <title>BCF Clash Helper v4.3</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; background: #fff; color: #333; }
-        .header { background: #333; padding: 10px 15px; color: white; border-bottom: 2px solid #0078d4; display: flex; justify-content: space-between; align-items: center; }
+        .header { background: #333; padding: 10px 15px; color: white; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0078d4; }
         .container { padding: 15px; }
         button { background: #0078d4; color: white; border: none; padding: 10px; border-radius: 2px; cursor: pointer; font-weight: 600; width: 100%; margin-bottom: 10px; }
         .clash-card { border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #444; background: #fafafa; }
@@ -12,24 +12,24 @@
         .clash-item.active { border-left-color: #0078d4; background-color: #e1f0ff; }
         .meta { font-size: 11px; color: #666; margin-top: 4px; }
         .hidden { display: none; }
-        #log-panel { font-size: 10px; color: #0078d4; background: #f0f7ff; padding: 8px; margin-top: 10px; border: 1px solid #c0d7ff; }
+        #status-bar { font-size: 10px; padding: 8px; margin-top: 10px; border: 1px solid #ccc; background: #f9f9f9; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
-    <div class="header"><h3>BCF CLASH HELPER</h3><span>v4.2</span></div>
+    <div class="header"><h3>BCF CLASH HELPER</h3><span>v4.3</span></div>
     <div class="container">
-        <div id="project-label" style="font-size: 11px; margin-bottom: 10px; font-weight: bold; color: #666;">INITIALISEREN...</div>
+        <div id="project-label" style="font-size: 11px; margin-bottom: 10px; font-weight: bold;">STANDBY</div>
         
         <div id="set-selection-area">
-            <button id="btn-load-sets">LADEN CLASHSETS</button>
+            <button id="btn-load-sets">STAP 1: HAAL CLASHSETS</button>
             <div id="clash-sets-list"></div>
         </div>
 
         <div id="detail-area" class="hidden">
-            <button onclick="location.reload()" style="background:#666;">⬅ TERUG NAAR OVERZICHT</button>
+            <button onclick="location.reload()" style="background:#666;">⬅ TERUG</button>
             <div id="clash-items-list"></div>
-            <div id="log-panel">Kies een clash voor live mapping...</div>
+            <div id="status-bar">Kies een clash...</div>
         </div>
     </div>
 
@@ -39,15 +39,16 @@
         var currentProjectId = null;
         var activeClashItems = [];
         var API_BASE_URL = "https://app21.connect.trimble.com/tc/api/2.0";
-        var MODEL_API_URL = "https://model-api21.connect.trimble.com/v1";
 
         async function init() {
             try {
-                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {});
+                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
+                    console.log("Viewer Event:", event, data);
+                });
                 var project = await API.project.getCurrentProject();
                 currentProjectId = project.id;
                 document.getElementById('project-label').innerText = "PROJECT: " + project.name;
-            } catch (error) { console.error("Opstartfout:", error); }
+            } catch (error) { console.error("Fout:", error); }
         }
 
         document.getElementById('btn-load-sets').onclick = async () => {
@@ -56,51 +57,32 @@
         };
 
         async function loadClashSets() {
-            var list = document.getElementById('clash-sets-list');
-            list.innerHTML = "Laden...";
-            try {
-                var response = await fetch(`${API_BASE_URL}/clashsets?projectId=${currentProjectId}`, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-                var sets = await response.json();
-                list.innerHTML = sets.map(s => `
-                    <div class="clash-card" onclick="openClashSet('${s.id}')"><strong>${s.name}</strong></div>
-                `).join('');
-            } catch (err) { list.innerHTML = "Fout bij laden."; }
+            var response = await fetch(`${API_BASE_URL}/clashsets?projectId=${currentProjectId}`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            var sets = await response.json();
+            document.getElementById('clash-sets-list').innerHTML = sets.map(s => `
+                <div class="clash-card" onclick="openClashSet('${s.id}')"><strong>${s.name}</strong></div>
+            `).join('');
         }
 
         async function openClashSet(clashId) {
             document.getElementById('set-selection-area').classList.add('hidden');
             document.getElementById('detail-area').classList.remove('hidden');
-            var list = document.getElementById('clash-items-list');
-            list.innerHTML = "Items ophalen...";
-
-            try {
-                var response = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-                activeClashItems = await response.json();
-                renderItems();
-            } catch (err) { list.innerHTML = "Fout bij ophalen."; }
+            var response = await fetch(`${API_BASE_URL}/clashsets/${clashId}/items`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            activeClashItems = await response.json();
+            renderItems();
         }
 
         function renderItems() {
-            document.getElementById('clash-items-list').innerHTML = activeClashItems.slice(0, 30).map(i => `
+            document.getElementById('clash-items-list').innerHTML = activeClashItems.slice(0, 50).map(i => `
                 <div class="clash-item" id="item-${i.id}" onclick="focusClash('${i.id}')">
                     <strong>${i.label}</strong>
                     <div class="meta">A: ${i.elementName1}</div>
                 </div>
             `).join('');
-        }
-
-        // De "Bridge" functie: vertaalt GUID naar interne Viewer Index (idx)
-        async function getIdx(modelId, sourceId) {
-            try {
-                var url = `${MODEL_API_URL}/models/${modelId}/entities/${sourceId}?fields=idx`;
-                var resp = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
-                var data = await resp.json();
-                return data.idx;
-            } catch (e) { return null; }
         }
 
         async function focusClash(clashItemId) {
@@ -109,24 +91,26 @@
 
             document.querySelectorAll('.clash-item').forEach(el => el.classList.remove('active'));
             document.getElementById(`item-${clashItemId}`).classList.add('active');
-            var log = document.getElementById('log-panel');
-            log.innerText = "Mapping zoeken...";
+            var status = document.getElementById('status-bar');
 
             try {
-                // STAP 1: Vertaal GUIDs naar interne nummers (idx)
-                var idx1 = await getIdx(item.sourceId1.versionId, item.sourceId1.sourceId);
-                var idx2 = await getIdx(item.sourceId2.versionId, item.sourceId2.sourceId);
+                /**
+                 * DE NIEUWE STRATEGIE: 
+                 * In plaats van de ID's te prefixen, gebruiken we de 'viewer.getObjects' 
+                 * om de interne viewer-ID's te vinden op basis van de Source GUID.
+                 */
+                status.innerText = "Zoeken in viewer...";
 
-                log.innerText = `Interne ID's: idx:${idx1} & idx:${idx2}`;
+                // We proberen de meest basale selectie die MOET werken volgens de SDK basics
+                var sel = [
+                    { modelId: item.sourceId1.versionId, objectIds: [item.sourceId1.sourceId] },
+                    { modelId: item.sourceId2.versionId, objectIds: [item.sourceId2.sourceId] }
+                ];
 
-                // STAP 2: Selecteer specifiek met 'idx:' prefix
-                var sel = [];
-                if (idx1 !== null) sel.push({ modelId: item.sourceId1.versionId, objectIds: ["idx:" + idx1] });
-                if (idx2 !== null) sel.push({ modelId: item.sourceId2.versionId, objectIds: ["idx:" + idx2] });
-
+                // Voer de selectie uit
                 await API.viewer.setSelection(sel);
-
-                // STAP 3: Camera focus (meters)
+                
+                // Camera naar de clash (in meters)
                 if (item.center) {
                     var f = 0.001;
                     var tx = item.center.x * f;
@@ -135,11 +119,15 @@
 
                     await API.viewer.setCamera({
                         lookAt: { x: tx, y: ty, z: tz },
-                        position: { x: tx + 0.5, y: ty + 0.5, z: tz + 0.5 },
+                        position: { x: tx + 0.7, y: ty + 0.7, z: tz + 0.7 },
                         projectionType: "perspective"
                     });
+                    status.innerText = "Gefocust op clash locatie.";
                 }
-            } catch (e) { log.innerText = "Viewer fout: " + e.message; }
+
+            } catch (e) { 
+                status.innerText = "Viewer reageert niet: " + e.message;
+            }
         }
 
         init();
