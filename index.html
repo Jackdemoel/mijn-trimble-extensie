@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v5.6</title>
+    <title>BCF Clash Helper v5.8</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; color: #1c1e21; }
         .header { background: #0078d4; color: white; padding: 12px; font-weight: bold; border-bottom: 3px solid #005a9e; }
@@ -19,18 +19,19 @@
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
-    <div class="header">BCF CLASH HELPER v5.6</div>
+    <div class="header">BCF CLASH HELPER v5.8</div>
     <div class="container">
         <div id="init-screen">
-            <button class="btn-blue" id="btn-start">VERBINDEN MET PROJECT</button>
+            <button class="btn-blue" id="btn-start">1. VERBIND MET PROJECT</button>
             <div id="setup" class="hidden">
+                <label style="font-size:11px; font-weight:bold;">SELECTEER CLASH SET:</label>
                 <select id="set-select" style="width:100%; padding:10px; margin:10px 0; border-radius:6px; border:1px solid #ddd;"></select>
-                <button class="btn-blue" id="btn-run">ANALYSEER CLASHES</button>
+                <button class="btn-blue" id="btn-run">2. ANALYSEER CLASHES</button>
             </div>
         </div>
 
         <div id="dashboard" class="hidden">
-            <button class="btn-blue" onclick="location.reload()" style="background:#666;">⬅ TERUG</button>
+            <button class="btn-blue" onclick="location.reload()" style="background:#666;">⬅ TERUG NAAR SELECTIE</button>
             <div id="results"></div>
         </div>
     </div>
@@ -72,8 +73,8 @@
         function render() {
             const groups = {};
             allClashes.forEach(c => {
-                const key = c.sourceId1.sourceId;
-                if (!groups[key]) groups[key] = { name: c.elementName1, model: c.sourceId1.modelName, items: [] };
+                const key = c.elementName1 || "Onbekend";
+                if (!groups[key]) groups[key] = { name: key, model: c.sourceId1.modelName, items: [] };
                 groups[key].items.push(c);
             });
 
@@ -82,7 +83,7 @@
             document.getElementById('results').innerHTML = sorted.map(g => `
                 <div class="card">
                     <div class="card-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'block' ? 'none' : 'block'">
-                        <div><strong>${g.name || 'Onbekend'}</strong><br><small style="color:#666">${g.model}</small></div>
+                        <div><strong>${g.name}</strong><br><small style="color:#666">${g.model}</small></div>
                         <span class="badge">${g.items.length}</span>
                     </div>
                     <div class="details">
@@ -97,32 +98,46 @@
             `).join('');
         }
 
-        // DE "CONSOLETEST" LOGICA GEÏNTEGREERD
+        // DE "BINGO" FOCUS FUNCTIE
         async function focusClash(clashId) {
             const item = allClashes.find(c => c.id === clashId);
             if (!item) return;
 
             try {
-                // 1. Mapping via Viewer (zoals in je test)
-                const runtimeIds = await API.viewer.convertToObjectRuntimeIds([
-                    { modelId: item.sourceId1.versionId, objectIds: [item.sourceId1.sourceId] },
-                    { modelId: item.sourceId2.versionId, objectIds: [item.sourceId2.sourceId] }
+                // Helper om IDX op te halen via de bewezen Model API route
+                const fetchIdx = async (mId, guid) => {
+                    const eid = encodeURIComponent("id:" + guid);
+                    const url = `https://model-api21.connect.trimble.com/models/${mId}/entities/${eid}?fields=idx`;
+                    const r = await fetch(url, {
+                        headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
+                    });
+                    if (!r.ok) return null;
+                    const d = await r.json();
+                    return d.idx; // De 'Magische' 647
+                };
+
+                // Haal Runtime IDs op voor beide objecten
+                const [idx1, idx2] = await Promise.all([
+                    fetchIdx(item.sourceId1.versionId, item.sourceId1.sourceId),
+                    fetchIdx(item.sourceId2.versionId, item.sourceId2.sourceId)
                 ]);
 
-                // 2. Selecteren
-                if (runtimeIds && runtimeIds.length > 0) {
-                    await API.viewer.setSelection(runtimeIds);
+                // Selecteren via de onfeilbare 'objectRuntimeIds'
+                const sel = [];
+                if (idx1 !== null) sel.push({ modelId: item.sourceId1.versionId, objectRuntimeIds: [idx1] });
+                if (idx2 !== null) sel.push({ modelId: item.sourceId2.versionId, objectRuntimeIds: [idx2] });
+
+                if (sel.length > 0) {
+                    await API.viewer.setSelection(sel);
                 }
 
-                // 3. Camera (Millimeters naar Meters)
+                // Camera navigatie: Millimeters (Clash API) naar Meters (Viewer API)
                 const pos = item.center || (item.boundingBox && item.boundingBox.center);
                 if (pos) {
                     const f = 0.001;
-                    const tx = pos.x * f; const ty = pos.y * f; const tz = pos.z * f;
-                    
                     await API.viewer.setCamera({
-                        lookAt: { x: tx, y: ty, z: tz },
-                        position: { x: tx + 1.2, y: ty + 1.2, z: tz + 1.2 },
+                        lookAt: { x: pos.x * f, y: pos.y * f, z: pos.z * f },
+                        position: { x: (pos.x * f) + 1.2, y: (pos.y * f) + 1.2, z: (pos.z * f) + 1.2 },
                         projectionType: "perspective",
                         up: { x: 0, y: 0, z: 1 }
                     });
