@@ -1,172 +1,79 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Clash Power Analyzer v5.2</title>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; color: #1c1e21; }
-        .header { background: #0078d4; color: white; padding: 10px 15px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #005a9e; }
-        .sidebar { padding: 15px; }
-        .filter-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; }
-        label { display: block; font-size: 11px; font-weight: 700; color: #606770; margin-bottom: 5px; text-transform: uppercase; }
-        select { width: 100%; padding: 8px; margin-bottom: 12px; border: 1px solid #dddfe2; border-radius: 6px; }
-        
-        .active-filters { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; }
-        .filter-badge { background: #e7f3ff; color: #1877f2; padding: 4px 10px; border-radius: 15px; font-size: 11px; font-weight: 600; border: 1px solid #1877f2; }
-        
-        .object-card { background: white; border-radius: 8px; margin-bottom: 10px; border: 1px solid #dddfe2; overflow: hidden; }
-        .object-header { padding: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #fff; }
-        .object-header:hover { background: #f5f6f7; }
-        .clash-count { background: #fa3e3e; color: white; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; font-size: 11px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
-        
-        .details-area { background: #f9fafb; border-top: 1px solid #dddfe2; display: none; }
-        .clash-row { padding: 8px 15px; font-size: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; }
-        .clash-row:hover { color: #1877f2; background: #fff; }
-        
-        .btn-main { background: #1877f2; color: white; border: none; padding: 10px; border-radius: 6px; width: 100%; cursor: pointer; font-weight: bold; }
-        .hidden { display: none; }
-    </style>
-    <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
-</head>
-<body>
-    <div class="header"><span>CLASH ANALYZER PRO</span><span>v5.2</span></div>
-    
-    <div class="sidebar">
-        <div id="init-screen">
-            <button class="btn-main" id="btn-start">HAAL CLASH DATA OP</button>
-            <div id="setup-controls" class="hidden" style="margin-top:15px;">
-                <label>Selecteer Clash Set</label>
-                <select id="set-select"></select>
-                <button class="btn-main" id="btn-run">ANALYSEER NU</button>
-            </div>
-        </div>
+/**
+ * focusClash v4.0
+ * Implementeert handmatige GUID-naar-IDX mapping en meter-conversie.
+ */
+async function focusClash(clashItemId) {
+    const item = activeClashItems.find(i => i.id === clashItemId);
+    if (!item || !API) return;
 
-        <div id="dashboard" class="hidden">
-            <div class="filter-card">
-                <label>Actieve Filters</label>
-                <div id="badge-container" class="active-filters"></div>
-                
-                <label>Filter op Model</label>
-                <select id="f-model"><option value="all">Alle modellen</option></select>
-                
-                <label>Filter op Product/Element</label>
-                <select id="f-product"><option value="all">Alle producten</option></select>
-            </div>
+    // UI Feedback: Markeer actieve rij
+    document.querySelectorAll('.clash-item').forEach(el => el.classList.remove('active'));
+    document.getElementById(`item-${clashItemId}`).classList.add('active');
 
-            <div id="results-container"></div>
-        </div>
-    </div>
+    try {
+        const MODEL_API_URL = "https://model-api21.connect.trimble.com/v1";
+        const authHeader = { 'Authorization': `Bearer ${accessToken}` };
 
-    <script>
-        var API, accessToken, project;
-        var allData = [];
-        var API_URL = "https://app21.connect.trimble.com/tc/api/2.0";
-
-        async function init() {
-            API = await TrimbleConnectWorkspace.connect(window.parent, (e, d) => {});
-            project = await API.project.getCurrentProject();
+        /**
+         * STAP 1: Handmatige Mapping (Oplossing voor Selectie Bug)
+         * We vragen de interne 'idx' op bij de Model API om de viewer-fallback te voorkomen.
+         */
+        async function getInternalIdx(modelId, entityId) {
+            try {
+                const url = `${MODEL_API_URL}/models/${modelId}/entities/${entityId}?fields=idx`;
+                const response = await fetch(url, { headers: authHeader });
+                const data = await response.json();
+                return data.idx; // Retourneert de integer index (bijv. 38)
+            } catch (e) {
+                console.error("Mapping mislukt voor:", entityId, e);
+                return null;
+            }
         }
 
-        document.getElementById('btn-start').onclick = async () => {
-            accessToken = await API.extension.requestPermission("accesstoken");
-            await API.embed.setTokens({ accessToken: accessToken }); // Essentieel voor autorisatie viewer data
-            var resp = await fetch(`${API_URL}/clashsets?projectId=${project.id}`, {
-                headers: { 'Authorization': `Bearer ${accessToken}` }
-            });
-            var sets = await resp.json();
-            var sel = document.getElementById('set-select');
-            sel.innerHTML = sets.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-            document.getElementById('setup-controls').classList.remove('hidden');
-        };
+        const idx1 = await getInternalIdx(item.sourceId1.versionId, item.sourceId1.sourceId);
+        const idx2 = await getInternalIdx(item.sourceId2.versionId, item.sourceId2.sourceId);
 
-        document.getElementById('btn-run').onclick = async () => {
-            var setId = document.getElementById('set-select').value;
-            var resp = await fetch(`${API_URL}/clashsets/${setId}/items`, {
-                headers: { 'Authorization': `Bearer ${accessToken}` }
+        /**
+         * STAP 2: Selectie opbouwen met 'idx:' prefix
+         * Dit dwingt de viewer om het specifieke object te pakken ipv het hele model.
+         */
+        const selectionData = [];
+        if (idx1 !== null) {
+            selectionData.push({ 
+                modelId: item.sourceId1.versionId, 
+                objectIds: ["idx:" + idx1] 
             });
-            allData = await resp.json();
-            
-            fillDropdowns();
-            renderDashboard();
-            
-            document.getElementById('init-screen').classList.add('hidden');
-            document.getElementById('dashboard').classList.remove('hidden');
-        };
-
-        function fillDropdowns() {
-            var models = new Set(), products = new Set();
-            allData.forEach(c => {
-                if (c.sourceId1.modelName) models.add(c.sourceId1.modelName);
-                if (c.elementName1) products.add(c.elementName1);
+        }
+        if (idx2 !== null) {
+            selectionData.push({ 
+                modelId: item.sourceId2.versionId, 
+                objectIds: ["idx:" + idx2] 
             });
-            
-            var mSel = document.getElementById('f-model');
-            [...models].sort().forEach(m => mSel.innerHTML += `<option value="${m}">${m}</option>`);
-            
-            var pSel = document.getElementById('f-product');
-            [...products].sort().forEach(p => pSel.innerHTML += `<option value="${p}">${p}</option>`);
         }
 
-        function renderDashboard() {
-            var mVal = document.getElementById('f-model').value;
-            var pVal = document.getElementById('f-product').value;
-            
-            // 1. Cumulatief Filteren
-            var filtered = allData.filter(c => {
-                var mMatch = (mVal === 'all' || c.sourceId1.modelName === mVal);
-                var pMatch = (pVal === 'all' || c.elementName1 === pVal);
-                return mMatch && pMatch;
-            });
+        // Gebruik uitsluitend ondersteunde setSelection methode
+        await API.viewer.setSelection(selectionData);
 
-            // 2. Badges bijwerken
-            var bContainer = document.getElementById('badge-container');
-            bContainer.innerHTML = "";
-            if (mVal !== 'all') bContainer.innerHTML += `<span class="filter-badge">${mVal}</span>`;
-            if (pVal !== 'all') bContainer.innerHTML += `<span class="filter-badge">${pVal}</span>`;
+        /**
+         * STAP 3: Camera navigatie (Oplossing voor Camera Bug)
+         * Conversie van millimeters (Clash API) naar meters (Viewer API) via factor 0.001.
+         */
+        const rawCenter = item.center || (item.boundingBox && item.boundingBox.center);
+        if (rawCenter) {
+            const f = 0.001; // Conversie factor
+            const tx = rawCenter.x * f;
+            const ty = rawCenter.y * f;
+            const tz = rawCenter.z * f;
 
-            // 3. Aggregeren (Groepeer op uniek element) 
-            var groups = {};
-            filtered.forEach(c => {
-                var key = c.sourceId1.sourceId; // Gebruik GUID als unieke sleutel
-                if (!groups[key]) groups[key] = { name: c.elementName1, model: c.sourceId1.modelName, items: [] };
-                groups[key].items.push(c);
-            });
-
-            var sortedGroups = Object.values(groups).sort((a, b) => b.items.length - a.items.length);
-
-            document.getElementById('results-container').innerHTML = sortedGroups.map(g => `
-                <div class="object-card">
-                    <div class="object-header" onclick="var d = this.nextElementSibling; d.style.display = d.style.display === 'block' ? 'none' : 'block'">
-                        <div style="max-width: 80%;">
-                            <strong style="font-size:13px;">${g.name}</strong><br>
-                            <small style="color:#606770;">${g.model}</small>
-                        </div>
-                        <span class="clash-count">${g.items.length}</span>
-                    </div>
-                    <div class="details-area">
-                        ${g.items.map(i => `
-                            <div class="clash-row" onclick="zoom('${i.center.x}','${i.center.y}','${i.center.z}')">
-                                <span>${i.label}</span>
-                                <span style="font-weight:bold;">ZOOM 🔍</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        document.getElementById('f-model').onchange = renderDashboard;
-        document.getElementById('f-product').onchange = renderDashboard;
-
-        async function zoom(x, y, z) {
-            var f = 0.001; // mm naar m
+            // Gebruik uitsluitend de volledige setCamera configuratie om crashes te voorkomen
             await API.viewer.setCamera({
-                lookAt: { x: x*f, y: y*f, z: z*f },
-                position: { x: (x*f)+1.2, y: (y*f)+1.2, z: (z*f)+1.2 },
+                lookAt: { x: tx, y: ty, z: tz },
+                position: { x: tx + 0.75, y: ty + 0.75, z: tz + 0.75 }, // Offset voor vogelvlucht
                 projectionType: "perspective"
             });
         }
 
-        init();
-    </script>
-</body>
-</html>
+    } catch (error) {
+        console.error("Fatale fout in focusClash:", error.message);
+    }
+}
