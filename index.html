@@ -1,110 +1,142 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Clash Aggregator v5.0</title>
+    <title>Clash Analyzer v5.1</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f4f4f4; color: #333; }
-        .header { background: #0078d4; color: white; padding: 12px; font-size: 16px; font-weight: bold; display: flex; justify-content: space-between; }
-        .container { padding: 10px; }
-        .card { background: white; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; border-left: 5px solid #0078d4; overflow: hidden; }
-        .card-header { padding: 10px; background: #fafafa; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; }
-        .card-body { padding: 0; display: none; }
-        .clash-row { padding: 8px 15px; border-bottom: 1px solid #f0f0f0; font-size: 12px; cursor: pointer; display: flex; justify-content: space-between; }
-        .clash-row:hover { background: #e1f0ff; }
-        .badge { background: #d83b01; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
-        button { background: #0078d4; color: white; border: none; padding: 10px; width: 100%; cursor: pointer; border-radius: 2px; }
-        .meta { font-size: 11px; color: #666; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f8f9fa; color: #202124; }
+        .header { background: #333; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #0078d4; }
+        .container { padding: 15px; max-width: 500px; }
+        .filter-section { background: white; padding: 15px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); margin-bottom: 15px; }
+        label { display: block; font-size: 11px; font-weight: bold; color: #5f6368; margin-bottom: 5px; text-transform: uppercase; }
+        select { width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #dadce0; border-radius: 4px; background: #fff; }
+        .stats-bar { display: flex; gap: 10px; margin-bottom: 15px; }
+        .stat-card { flex: 1; background: #e8f0fe; padding: 10px; border-radius: 4px; text-align: center; }
+        .stat-val { display: block; font-size: 18px; font-weight: bold; color: #1967d2; }
+        .clash-card { background: white; border: 1px solid #dadce0; border-radius: 4px; margin-bottom: 8px; transition: 0.2s; }
+        .clash-card:hover { border-color: #1a73e8; box-shadow: 0 1px 6px rgba(32,33,36,0.28); }
+        .clash-header { padding: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .badge { background: #fce8e6; color: #d93025; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+        button.primary { background: #1a73e8; color: white; border: none; padding: 12px; border-radius: 4px; width: 100%; cursor: pointer; font-weight: bold; }
         .hidden { display: none; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
-    <div class="header"><span>CLASH AGGREGATOR</span> <span>v5.0</span></div>
+    <div class="header"><span>CLASH ANALYZER</span><small>v5.1</small></div>
     <div class="container">
-        <div id="setup-area">
-            <button id="btn-start">LAAD PROJECT DATA</button>
-            <div id="set-list" style="margin-top:10px;"></div>
+        <div id="init-view">
+            <button class="primary" id="btn-connect">START DATA SCAN</button>
+            <div id="set-picker" class="hidden" style="margin-top:15px;">
+                <label>Kies een Clash Set</label>
+                <select id="select-set"></select>
+                <button class="primary" id="btn-analyze">ANALYSEER DATA</button>
+            </div>
         </div>
-        <div id="dashboard" class="hidden">
-            <button onclick="location.reload()" style="background:#666; margin-bottom:10px;">⬅ TERUG</button>
-            <div id="aggregated-list"></div>
+
+        <div id="analysis-view" class="hidden">
+            <div class="filter-section">
+                <div class="stats-bar">
+                    <div class="stat-card"><span class="stat-val" id="count-total">0</span><small>Totaal</small></div>
+                    <div class="stat-card"><span class="stat-val" id="count-filtered">0</span><small>Gefilterd</small></div>
+                </div>
+                <label>Filter op Product/Type</label>
+                <select id="filter-product"><option value="all">Alle producten tonen</option></select>
+                <label>Filter op Model</label>
+                <select id="filter-model"><option value="all">Alle modellen tonen</option></select>
+            </div>
+            <div id="results-list"></div>
+            <button onclick="location.reload()" style="margin-top:20px; background:none; color:#5f6368; border:none; cursor:pointer;">⬅ Reset Filters</button>
         </div>
     </div>
 
     <script>
-        var API, accessToken, currentProject;
-        var API_BASE = "https://app21.connect.trimble.com/tc/api/2.0";
+        var API, accessToken, project;
+        var allClashes = [];
+        var API_URL = "https://app21.connect.trimble.com/tc/api/2.0";
 
         async function init() {
             API = await TrimbleConnectWorkspace.connect(window.parent, (e, d) => {});
-            var p = await API.project.getCurrentProject();
-            currentProject = p.id;
-            document.getElementById('btn-start').innerText = "SCAN CLASHES IN: " + p.name;
+            project = await API.project.getCurrentProject();
         }
 
-        document.getElementById('btn-start').onclick = async () => {
+        document.getElementById('btn-connect').onclick = async () => {
             accessToken = await API.extension.requestPermission("accesstoken");
-            await API.embed.setTokens({ accessToken: accessToken });
+            await API.embed.setTokens({ accessToken: accessToken }); // Nodig voor 3D context
             loadSets();
         };
 
         async function loadSets() {
-            var resp = await fetch(`${API_BASE}/clashsets?projectId=${currentProject}`, {
+            var resp = await fetch(`${API_URL}/clashsets?projectId=${project.id}`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             var sets = await resp.json();
-            document.getElementById('set-list').innerHTML = sets.map(s => 
-                `<div class="card" style="padding:10px; cursor:pointer;" onclick="processSet('${s.id}')"><strong>${s.name}</strong></div>`
-            ).join('');
+            var sel = document.getElementById('select-set');
+            sel.innerHTML = sets.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            document.getElementById('set-picker').classList.remove('hidden');
         }
 
-        async function processSet(setId) {
-            document.getElementById('setup-area').classList.add('hidden');
-            document.getElementById('dashboard').classList.remove('hidden');
-            var listDiv = document.getElementById('aggregated-list');
-            listDiv.innerHTML = "Analyseert clashes...";
-
-            var resp = await fetch(`${API_BASE}/clashsets/${setId}/items`, {
+        document.getElementById('btn-analyze').onclick = async () => {
+            var setId = document.getElementById('select-set').value;
+            var resp = await fetch(`${API_URL}/clashsets/${setId}/items`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
-            var items = await resp.json();
+            allClashes = await resp.json();
+            buildFilters();
+            updateList();
+            document.getElementById('init-view').classList.add('hidden');
+            document.getElementById('analysis-view').classList.remove('hidden');
+        };
 
-            // GROEPEREN: We gebruiken de 'elementName1' als unieke sleutel [cite: 52]
-            var groups = {};
-            items.forEach(item => {
-                var key = item.elementName1 || "Onbekend Object";
-                if (!groups[key]) groups[key] = { name: key, clashes: [] };
-                groups[key].clashes.push(item);
+        function buildFilters() {
+            var products = new Set();
+            var models = new Set();
+            
+            allClashes.forEach(c => {
+                if (c.elementName1) products.add(c.elementName1);
+                if (c.sourceId1 && c.sourceId1.modelName) models.add(c.sourceId1.modelName);
             });
 
-            // SORTEREN: Meeste clashes bovenaan
-            var sortedKeys = Object.keys(groups).sort((a, b) => groups[b].clashes.length - groups[a].clashes.length);
+            var pSel = document.getElementById('filter-product');
+            [...products].sort().forEach(p => pSel.innerHTML += `<option value="${p}">${p}</option>`);
 
-            listDiv.innerHTML = sortedKeys.map(key => {
-                var g = groups[key];
-                return `
-                <div class="card">
-                    <div class="card-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'block' ? 'none' : 'block'">
-                        <div><strong>${g.name}</strong><br><span class="meta">Model: ${g.clashes[0].sourceId1.modelName}</span></div>
-                        <span class="badge">${g.clashes.length} clashes</span>
-                    </div>
-                    <div class="card-body">
-                        ${g.clashes.map(c => `
-                            <div class="clash-row" onclick="zoomTo('${c.center.x}','${c.center.y}','${c.center.z}')">
-                                <span>${c.label}</span>
-                                <span style="color:#0078d4;">Focus 🔍</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>`;
-            }).join('');
+            var mSel = document.getElementById('filter-model');
+            [...models].sort().forEach(m => mSel.innerHTML += `<option value="${m}">${m}</option>`);
         }
+
+        function updateList() {
+            var pFilter = document.getElementById('filter-product').value;
+            var mFilter = document.getElementById('filter-model').value;
+
+            var filtered = allClashes.filter(c => {
+                var pMatch = (pFilter === 'all' || c.elementName1 === pFilter);
+                var mMatch = (mFilter === 'all' || (c.sourceId1 && c.sourceId1.modelName === mFilter));
+                return pMatch && mMatch;
+            });
+
+            document.getElementById('count-total').innerText = allClashes.length;
+            document.getElementById('count-filtered').innerText = filtered.length;
+
+            document.getElementById('results-list').innerHTML = filtered.slice(0, 50).map(c => `
+                <div class="clash-card" onclick="zoomTo(${c.center.x}, ${c.center.y}, ${c.center.z})">
+                    <div class="clash-header">
+                        <div>
+                            <strong>${c.label}</strong><br>
+                            <small>${c.elementName1 || 'Onbekend'}</small>
+                        </div>
+                        <span class="badge">FOCUS</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('filter-product').onchange = updateList;
+        document.getElementById('filter-model').onchange = updateList;
 
         async function zoomTo(x, y, z) {
             var f = 0.001; // mm naar m
             await API.viewer.setCamera({
                 lookAt: { x: x*f, y: y*f, z: z*f },
-                position: { x: (x*f)+1.2, y: (y*f)+1.2, z: (z*f)+1.2 },
+                position: { x: (x*f)+1.5, y: (y*f)+1.5, z: (z*f)+1.5 },
                 projectionType: "perspective"
             });
         }
