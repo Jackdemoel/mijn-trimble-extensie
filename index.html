@@ -1,37 +1,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v5.8</title>
+    <title>BCF Clash Helper v6.0</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; color: #1c1e21; }
         .header { background: #0078d4; color: white; padding: 12px; font-weight: bold; border-bottom: 3px solid #005a9e; }
         .container { padding: 15px; }
         .btn-blue { background: #1877f2; color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
-        .card { background: white; border-radius: 8px; margin-bottom: 8px; border: 1px solid #dddfe2; overflow: hidden; }
-        .card-header { padding: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .card { background: white; border-radius: 8px; margin-bottom: 8px; border: 1px solid #dddfe2; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .card-header { padding: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; }
         .card-header:hover { background: #f5f6f7; }
         .badge { background: #fa3e3e; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
         .details { display: none; background: #f9fafb; border-top: 1px solid #dddfe2; }
         .clash-row { padding: 10px 15px; font-size: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; }
         .clash-row:hover { background: #e7f3ff; color: #1877f2; }
         .hidden { display: none; }
+        select { width: 100%; padding: 10px; margin: 10px 0; border-radius: 6px; border: 1px solid #ddd; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
-    <div class="header">BCF CLASH HELPER v5.8</div>
+    <div class="header">BCF CLASH HELPER v6.0</div>
     <div class="container">
         <div id="init-screen">
-            <button class="btn-blue" id="btn-start">1. VERBIND MET PROJECT</button>
+            <button class="btn-blue" id="btn-start">1. VERBIND MET VIEWER</button>
             <div id="setup" class="hidden">
-                <label style="font-size:11px; font-weight:bold;">SELECTEER CLASH SET:</label>
-                <select id="set-select" style="width:100%; padding:10px; margin:10px 0; border-radius:6px; border:1px solid #ddd;"></select>
-                <button class="btn-blue" id="btn-run">2. ANALYSEER CLASHES</button>
+                <label style="font-size:11px; font-weight:bold;">KIES CLASH SET:</label>
+                <select id="set-select"></select>
+                <button class="btn-blue" id="btn-run">2. ANALYSEER DATA</button>
             </div>
         </div>
 
         <div id="dashboard" class="hidden">
-            <button class="btn-blue" onclick="location.reload()" style="background:#666;">⬅ TERUG NAAR SELECTIE</button>
+            <button class="btn-blue" onclick="location.reload()" style="background:#666;">⬅ TERUG</button>
             <div id="results"></div>
         </div>
     </div>
@@ -41,8 +42,10 @@
         var allClashes = [];
 
         async function init() {
-            API = await TrimbleConnectWorkspace.connect(window.parent, (e, d) => {});
-            project = await API.project.getCurrentProject();
+            try {
+                API = await TrimbleConnectWorkspace.connect(window.parent, (e, d) => {});
+                project = await API.project.getCurrentProject();
+            } catch (e) { console.error("API Init Fout", e); }
         }
 
         document.getElementById('btn-start').onclick = async () => {
@@ -54,7 +57,7 @@
             });
             const sets = await resp.json();
             const sel = document.getElementById('set-select');
-            sel.innerHTML = sets.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            sel.innerHTML = sets.map(s => `<option value="${s.id}">${s.name} (${s.count})</option>`).join('');
             document.getElementById('setup').classList.remove('hidden');
             document.getElementById('btn-start').classList.add('hidden');
         };
@@ -71,10 +74,11 @@
         };
 
         function render() {
+            // Groepeer op het unieke GUID van het eerste object in de clash
             const groups = {};
             allClashes.forEach(c => {
-                const key = c.elementName1 || "Onbekend";
-                if (!groups[key]) groups[key] = { name: key, model: c.sourceId1.modelName, items: [] };
+                const key = c.sourceId1.sourceId;
+                if (!groups[key]) groups[key] = { name: c.elementName1 || "Onbekend", model: c.sourceId1.modelName, items: [] };
                 groups[key].items.push(c);
             });
 
@@ -83,14 +87,14 @@
             document.getElementById('results').innerHTML = sorted.map(g => `
                 <div class="card">
                     <div class="card-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'block' ? 'none' : 'block'">
-                        <div><strong>${g.name}</strong><br><small style="color:#666">${g.model}</small></div>
+                        <div style="max-width:80%;"><strong>${g.name}</strong><br><small style="color:#666">${g.model}</small></div>
                         <span class="badge">${g.items.length}</span>
                     </div>
                     <div class="details">
                         ${g.items.map(i => `
                             <div class="clash-row" onclick="focusClash('${i.id}')">
                                 <span>${i.label}</span>
-                                <strong style="color:#1877f2;">FOCUS 🔍</strong>
+                                <strong style="color:#1877f2;">ZOOM 🔍</strong>
                             </div>
                         `).join('')}
                     </div>
@@ -98,51 +102,30 @@
             `).join('');
         }
 
-        // DE "BINGO" FOCUS FUNCTIE
         async function focusClash(clashId) {
             const item = allClashes.find(c => c.id === clashId);
             if (!item) return;
 
             try {
-                // Helper om IDX op te halen via de bewezen Model API route
-                const fetchIdx = async (mId, guid) => {
-                    const eid = encodeURIComponent("id:" + guid);
-                    const url = `https://model-api21.connect.trimble.com/models/${mId}/entities/${eid}?fields=idx`;
-                    const r = await fetch(url, {
-                        headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
-                    });
-                    if (!r.ok) return null;
-                    const d = await r.json();
-                    return d.idx; // De 'Magische' 647
-                };
-
-                // Haal Runtime IDs op voor beide objecten
-                const [idx1, idx2] = await Promise.all([
-                    fetchIdx(item.sourceId1.versionId, item.sourceId1.sourceId),
-                    fetchIdx(item.sourceId2.versionId, item.sourceId2.sourceId)
-                ]);
-
-                // Selecteren via de onfeilbare 'objectRuntimeIds'
-                const sel = [];
-                if (idx1 !== null) sel.push({ modelId: item.sourceId1.versionId, objectRuntimeIds: [idx1] });
-                if (idx2 !== null) sel.push({ modelId: item.sourceId2.versionId, objectRuntimeIds: [idx2] });
-
-                if (sel.length > 0) {
-                    await API.viewer.setSelection(sel);
-                }
-
-                // Camera navigatie: Millimeters (Clash API) naar Meters (Viewer API)
+                // CAMERA FOCUS: Millimeters (Clash API) naar Meters (Viewer API)
                 const pos = item.center || (item.boundingBox && item.boundingBox.center);
                 if (pos) {
-                    const f = 0.001;
+                    const f = 0.001; 
+                    const tx = pos.x * f; const ty = pos.y * f; const tz = pos.z * f;
+                    
                     await API.viewer.setCamera({
-                        lookAt: { x: pos.x * f, y: pos.y * f, z: pos.z * f },
-                        position: { x: (pos.x * f) + 1.2, y: (pos.y * f) + 1.2, z: (pos.z * f) + 1.2 },
+                        lookAt: { x: tx, y: ty, z: tz },
+                        position: { x: tx + 1.2, y: ty + 1.2, z: tz + 1.2 },
                         projectionType: "perspective",
                         up: { x: 0, y: 0, z: 1 }
                     });
                 }
-            } catch (err) { console.error("Focus fout:", err); }
+                
+                // We laten de selectie weg omdat deze in de huidige viewer-omgeving 
+                // helaas altijd de hele groep selecteert. De camera brengt je nu wel 
+                // direct naar de juiste plek.
+                
+            } catch (err) { console.error("Camera fout:", err); }
         }
 
         init();
