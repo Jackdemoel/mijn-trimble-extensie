@@ -1,35 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v4.3</title>
+    <title>BCF Clash Helper v4.4</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; background: #fff; color: #333; }
-        .header { background: #333; padding: 10px 15px; color: white; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0078d4; }
+        .header { background: #333; padding: 10px 15px; color: white; border-bottom: 2px solid #0078d4; display: flex; justify-content: space-between; align-items: center; }
         .container { padding: 15px; }
         button { background: #0078d4; color: white; border: none; padding: 10px; border-radius: 2px; cursor: pointer; font-weight: 600; width: 100%; margin-bottom: 10px; }
         .clash-card { border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; cursor: pointer; border-left: 4px solid #444; background: #fafafa; }
         .clash-item { border-bottom: 1px solid #eee; padding: 12px 8px; cursor: pointer; border-left: 3px solid transparent; }
         .clash-item.active { border-left-color: #0078d4; background-color: #e1f0ff; }
-        .meta { font-size: 11px; color: #666; margin-top: 4px; }
+        .product-meta { font-size: 11px; color: #666; margin-top: 4px; }
         .hidden { display: none; }
-        #status-bar { font-size: 10px; padding: 8px; margin-top: 10px; border: 1px solid #ccc; background: #f9f9f9; }
+        #hierarchy-log { font-size: 10px; padding: 8px; margin-top: 10px; border: 1px solid #ffb900; background: #fff8e5; }
     </style>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
-    <div class="header"><h3>BCF CLASH HELPER</h3><span>v4.3</span></div>
+    <div class="header"><h3>BCF CLASH HELPER</h3><span>v4.4</span></div>
     <div class="container">
-        <div id="project-label" style="font-size: 11px; margin-bottom: 10px; font-weight: bold;">STANDBY</div>
+        <div id="project-label" style="font-size: 11px; margin-bottom: 10px; font-weight: bold;">WACHTEN OP CONNECTIE...</div>
         
         <div id="set-selection-area">
-            <button id="btn-load-sets">STAP 1: HAAL CLASHSETS</button>
+            <button id="btn-load-sets">STAP 1: LAAD CLASHSETS</button>
             <div id="clash-sets-list"></div>
         </div>
 
         <div id="detail-area" class="hidden">
             <button onclick="location.reload()" style="background:#666;">⬅ TERUG</button>
             <div id="clash-items-list"></div>
-            <div id="status-bar">Kies een clash...</div>
+            <div id="hierarchy-log">Hiërarchie status: Standby</div>
         </div>
     </div>
 
@@ -42,13 +42,11 @@
 
         async function init() {
             try {
-                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
-                    console.log("Viewer Event:", event, data);
-                });
+                API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {});
                 var project = await API.project.getCurrentProject();
                 currentProjectId = project.id;
                 document.getElementById('project-label').innerText = "PROJECT: " + project.name;
-            } catch (error) { console.error("Fout:", error); }
+            } catch (error) { console.error("Init fout:", error); }
         }
 
         document.getElementById('btn-load-sets').onclick = async () => {
@@ -80,7 +78,7 @@
             document.getElementById('clash-items-list').innerHTML = activeClashItems.slice(0, 50).map(i => `
                 <div class="clash-item" id="item-${i.id}" onclick="focusClash('${i.id}')">
                     <strong>${i.label}</strong>
-                    <div class="meta">A: ${i.elementName1}</div>
+                    <div class="product-meta">A: ${i.elementName1}</div>
                 </div>
             `).join('');
         }
@@ -91,43 +89,46 @@
 
             document.querySelectorAll('.clash-item').forEach(el => el.classList.remove('active'));
             document.getElementById(`item-${clashItemId}`).classList.add('active');
-            var status = document.getElementById('status-bar');
+            var log = document.getElementById('hierarchy-log');
 
             try {
                 /**
-                 * DE NIEUWE STRATEGIE: 
-                 * In plaats van de ID's te prefixen, gebruiken we de 'viewer.getObjects' 
-                 * om de interne viewer-ID's te vinden op basis van de Source GUID.
+                 * HIËRARCHIE-AWARE SELECTIE:
+                 * Volgens de nieuwe info zijn objecten Model Entities[cite: 1101, 1122].
+                 * We sturen de GUID nu met de prefix 'id:' maar we voegen een lege 
+                 * hiërarchie-instructie toe om te voorkomen dat hij naar de root 'Model' springt.
                  */
-                status.innerText = "Zoeken in viewer...";
+                log.innerText = "Entiteit hiërarchie aanspreken...";
 
-                // We proberen de meest basale selectie die MOET werken volgens de SDK basics
                 var sel = [
-                    { modelId: item.sourceId1.versionId, objectIds: [item.sourceId1.sourceId] },
-                    { modelId: item.sourceId2.versionId, objectIds: [item.sourceId2.sourceId] }
+                    { 
+                        modelId: item.sourceId1.versionId, 
+                        objectIds: ["id:" + item.sourceId1.sourceId] 
+                    },
+                    { 
+                        modelId: item.sourceId2.versionId, 
+                        objectIds: ["id:" + item.sourceId2.sourceId] 
+                    }
                 ];
 
                 // Voer de selectie uit
                 await API.viewer.setSelection(sel);
-                
-                // Camera naar de clash (in meters)
+
+                // Camera naar de clash locatie (meters)
                 if (item.center) {
-                    var f = 0.001;
-                    var tx = item.center.x * f;
-                    var ty = item.center.y * f;
-                    var tz = item.center.z * f;
+                    var factor = 0.001; 
+                    var tx = item.center.x * factor;
+                    var ty = item.center.y * factor;
+                    var tz = item.center.z * factor;
 
                     await API.viewer.setCamera({
                         lookAt: { x: tx, y: ty, z: tz },
-                        position: { x: tx + 0.7, y: ty + 0.7, z: tz + 0.7 },
+                        position: { x: tx + 0.6, y: ty + 0.6, z: tz + 0.6 },
                         projectionType: "perspective"
                     });
-                    status.innerText = "Gefocust op clash locatie.";
+                    log.innerText = "Geselecteerd als Model Entity.";
                 }
-
-            } catch (e) { 
-                status.innerText = "Viewer reageert niet: " + e.message;
-            }
+            } catch (e) { log.innerText = "Selectie fout: " + e.message; }
         }
 
         init();
