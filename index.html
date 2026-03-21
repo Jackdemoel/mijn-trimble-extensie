@@ -1,84 +1,110 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BCF Clash Helper v4.6</title>
-    <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
+    <title>Clash Aggregator v5.0</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; padding: 10px; background: #fff; }
-        button { background: #0078d4; color: white; border: none; padding: 10px; width: 100%; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
-        .clash-item { border-bottom: 1px solid #eee; padding: 10px; cursor: pointer; }
-        .clash-item:hover { background: #f0f7ff; }
-        .active { border-left: 4px solid #0078d4; background: #f0f7ff; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f4f4f4; color: #333; }
+        .header { background: #0078d4; color: white; padding: 12px; font-size: 16px; font-weight: bold; display: flex; justify-content: space-between; }
+        .container { padding: 10px; }
+        .card { background: white; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; border-left: 5px solid #0078d4; overflow: hidden; }
+        .card-header { padding: 10px; background: #fafafa; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; }
+        .card-body { padding: 0; display: none; }
+        .clash-row { padding: 8px 15px; border-bottom: 1px solid #f0f0f0; font-size: 12px; cursor: pointer; display: flex; justify-content: space-between; }
+        .clash-row:hover { background: #e1f0ff; }
+        .badge { background: #d83b01; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+        button { background: #0078d4; color: white; border: none; padding: 10px; width: 100%; cursor: pointer; border-radius: 2px; }
+        .meta { font-size: 11px; color: #666; }
+        .hidden { display: none; }
     </style>
+    <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
 </head>
 <body>
-    <div id="project-label">Laden...</div>
-    <button id="btn-load">1. ACTIVEER VIEWER DATA</button>
-    <div id="list"></div>
+    <div class="header"><span>CLASH AGGREGATOR</span> <span>v5.0</span></div>
+    <div class="container">
+        <div id="setup-area">
+            <button id="btn-start">LAAD PROJECT DATA</button>
+            <div id="set-list" style="margin-top:10px;"></div>
+        </div>
+        <div id="dashboard" class="hidden">
+            <button onclick="location.reload()" style="background:#666; margin-bottom:10px;">⬅ TERUG</button>
+            <div id="aggregated-list"></div>
+        </div>
+    </div>
 
     <script>
-        var API;
-        var accessToken;
-        var currentProject;
+        var API, accessToken, currentProject;
+        var API_BASE = "https://app21.connect.trimble.com/tc/api/2.0";
 
         async function init() {
-            // Verbinding maken volgens sectie 1.1
-            API = await TrimbleConnectWorkspace.connect(window.parent, (event, data) => {
-                console.log("Viewer Event:", event, data);
-            });
-            
-            currentProject = await API.project.getCurrentProject();
-            document.getElementById('project-label').innerText = "Project: " + currentProject.name;
+            API = await TrimbleConnectWorkspace.connect(window.parent, (e, d) => {});
+            var p = await API.project.getCurrentProject();
+            currentProject = p.id;
+            document.getElementById('btn-start').innerText = "SCAN CLASHES IN: " + p.name;
         }
 
-        document.getElementById('btn-load').onclick = async () => {
-            // Stap A: Request permission [cite: 1]
+        document.getElementById('btn-start').onclick = async () => {
             accessToken = await API.extension.requestPermission("accesstoken");
-            
-            // Stap B: CRUCIAAL - Geef de token terug aan de viewer (Sectie 2.1)
             await API.embed.setTokens({ accessToken: accessToken });
-            
-            loadClashSets();
+            loadSets();
         };
 
-        async function loadClashSets() {
-            var resp = await fetch(`https://app21.connect.trimble.com/tc/api/2.0/clashsets?projectId=${currentProject.id}`, {
+        async function loadSets() {
+            var resp = await fetch(`${API_BASE}/clashsets?projectId=${currentProject}`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             var sets = await resp.json();
-            document.getElementById('list').innerHTML = sets.map(s => `<button onclick="loadItems('${s.id}')">${s.name}</button>`).join('');
+            document.getElementById('set-list').innerHTML = sets.map(s => 
+                `<div class="card" style="padding:10px; cursor:pointer;" onclick="processSet('${s.id}')"><strong>${s.name}</strong></div>`
+            ).join('');
         }
 
-        async function loadItems(setId) {
-            var resp = await fetch(`https://app21.connect.trimble.com/tc/api/2.0/clashsets/${setId}/items`, {
+        async function processSet(setId) {
+            document.getElementById('setup-area').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+            var listDiv = document.getElementById('aggregated-list');
+            listDiv.innerHTML = "Analyseert clashes...";
+
+            var resp = await fetch(`${API_BASE}/clashsets/${setId}/items`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             var items = await resp.json();
-            render(items);
+
+            // GROEPEREN: We gebruiken de 'elementName1' als unieke sleutel [cite: 52]
+            var groups = {};
+            items.forEach(item => {
+                var key = item.elementName1 || "Onbekend Object";
+                if (!groups[key]) groups[key] = { name: key, clashes: [] };
+                groups[key].clashes.push(item);
+            });
+
+            // SORTEREN: Meeste clashes bovenaan
+            var sortedKeys = Object.keys(groups).sort((a, b) => groups[b].clashes.length - groups[a].clashes.length);
+
+            listDiv.innerHTML = sortedKeys.map(key => {
+                var g = groups[key];
+                return `
+                <div class="card">
+                    <div class="card-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'block' ? 'none' : 'block'">
+                        <div><strong>${g.name}</strong><br><span class="meta">Model: ${g.clashes[0].sourceId1.modelName}</span></div>
+                        <span class="badge">${g.clashes.length} clashes</span>
+                    </div>
+                    <div class="card-body">
+                        ${g.clashes.map(c => `
+                            <div class="clash-row" onclick="zoomTo('${c.center.x}','${c.center.y}','${c.center.z}')">
+                                <span>${c.label}</span>
+                                <span style="color:#0078d4;">Focus 🔍</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+            }).join('');
         }
 
-        function render(items) {
-            document.getElementById('list').innerHTML = items.slice(0, 20).map(i => `
-                <div class="clash-item" onclick="focusClash('${i.sourceId1.versionId}', '${i.sourceId1.sourceId}', ${i.center.x}, ${i.center.y}, ${i.center.z})">
-                    ${i.label}
-                </div>
-            `).join('');
-        }
-
-        async function focusClash(vId, sId, x, y, z) {
-            // Gebruik de 'id:' prefix zoals gesuggereerd door de Model Entity info [cite: 52]
-            var selection = [{
-                modelId: vId,
-                objectIds: ["id:" + sId]
-            }];
-
-            await API.viewer.setSelection(selection);
-
-            // Camera in meters (0.001 factor)
-            var f = 0.001;
+        async function zoomTo(x, y, z) {
+            var f = 0.001; // mm naar m
             await API.viewer.setCamera({
                 lookAt: { x: x*f, y: y*f, z: z*f },
-                position: { x: (x*f)+1, y: (y*f)+1, z: (z*f)+1 },
+                position: { x: (x*f)+1.2, y: (y*f)+1.2, z: (z*f)+1.2 },
                 projectionType: "perspective"
             });
         }
